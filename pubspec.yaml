@@ -34,6 +34,8 @@ dependencies:
   # 토스트 메시지
   fluttertoast: ^8.2.2
 
+  url_launcher: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

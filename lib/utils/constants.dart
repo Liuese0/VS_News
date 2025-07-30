@@ -11,10 +11,10 @@ class AppColors {
 
 class ApiConstants {
   // 무료 Node.js 백엔드 호스팅 (Render, Railway, Vercel 등 사용)
-  static const String baseUrl = 'https://your-backend-url.com/api';
+  static const String baseUrl = 'http://localhost:3000/api'; // 개발용
 
   // News API 무료 키 (https://newsapi.org)
-  static const String newsApiKey = 'YOUR_NEWS_API_KEY';
+  static const String newsApiKey = '4298913bb759467bbf9d04dbdddb9749'; //new api
 
   // GPT API (선택사항)
   static const String openAiApiKey = 'YOUR_OPENAI_API_KEY';

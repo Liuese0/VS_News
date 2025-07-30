@@ -71,7 +71,7 @@ class ApiService {
 
       return response.statusCode == 201;
     } catch (e) {
-      if (e is DioError && e.response?.statusCode == 409) {
+      if (e is DioException && e.response?.statusCode == 409) {
         throw Exception('이미 투표하셨습니다.');
       }
       throw Exception('투표 실패: $e');

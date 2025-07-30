@@ -321,6 +321,17 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                 color: Colors.white,
               ),
             ),
+            PieChartSection(
+              value: widget.issue.negativePercent,
+              title: '반대\n${widget.issue.negativePercent.toStringAsFixed(1)}%',
+              color: Colors.red,
+              radius: 80,
+              titleStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
           ],
           sectionsSpace: 2,
           centerSpaceRadius: 40,
