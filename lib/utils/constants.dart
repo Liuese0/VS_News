@@ -14,39 +14,24 @@ class AppColors {
 }
 
 class ApiConstants {
-  // 플랫폼별 기본 URL
+  // 실제 기기용 기본 URL
   static String get baseUrl {
-    if (Platform.isAndroid) {
-      // 안드로이드 에뮬레이터는 10.0.2.2를 사용
-      return 'http://localhost:3000/api';
-    } else {
-      // iOS 시뮬레이터와 기타 플랫폼은 localhost 사용
-      return 'http://localhost:3000/api';
-    }
+    return 'http://172.30.1.87:3000/api';
   }
 
   // 연결 시도할 URL 목록 (우선순위순)
   static List<String> get possibleUrls {
-    if (Platform.isAndroid) {
-      return [
-        'http://10.0.2.2:3000/api',    // 안드로이드 에뮬레이터
-        'http://192.168.1.100:3000/api', // WiFi IP (예시)
-        'http://localhost:3000/api',
-        'http://127.0.0.1:3000/api',
-      ];
-    } else {
-      return [
-        'http://localhost:3000/api',
-        'http://127.0.0.1:3000/api',
-        'http://10.0.2.2:3000/api',
-      ];
-    }
+    return [
+      'http://172.30.1.87:3000/api',    // 실제 PC IP
+      'http://localhost:3000/api',
+      'http://127.0.0.1:3000/api',
+      'http://10.0.2.2:3000/api',        // 안드로이드 에뮬레이터용
+    ];
   }
 
   // News API 키
   static const String newsApiKey = '4298913bb759467bbf9d04dbdddb9749';
 }
-
 class AppStrings {
   static const String appName = '뉴스 디베이터';
   static const String errorNetwork = '네트워크 연결을 확인해주세요';
