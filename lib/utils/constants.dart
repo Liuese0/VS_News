@@ -18,7 +18,7 @@ class ApiConstants {
   static String get baseUrl {
     if (Platform.isAndroid) {
       // 안드로이드 에뮬레이터는 10.0.2.2를 사용
-      return 'http://10.0.2.2:3000/api';
+      return 'http://localhost:3000/api';
     } else {
       // iOS 시뮬레이터와 기타 플랫폼은 localhost 사용
       return 'http://localhost:3000/api';

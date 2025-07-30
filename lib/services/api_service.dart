@@ -11,13 +11,31 @@ class ApiService {
 
   final Dio _dio = Dio(BaseOptions(
     baseUrl: ApiConstants.baseUrl,
-    connectTimeout: const Duration(seconds: 5),
-    receiveTimeout: const Duration(seconds: 3),
+    connectTimeout: const Duration(seconds: 30), // 5초 → 30초로 증가
+    receiveTimeout: const Duration(seconds: 30), // 3초 → 30초로 증가
+    sendTimeout: const Duration(seconds: 30),    // 추가
   ));
+
+  // 서버 연결 테스트 메서드 추가
+  Future<bool> testConnection() async {
+    try {
+      final response = await _dio.get('/health');
+      return response.statusCode == 200;
+    } catch (e) {
+      print('서버 연결 테스트 실패: $e');
+      return false;
+    }
+  }
 
   // 이슈 목록 가져오기
   Future<List<Issue>> getIssues({String sortBy = 'debate_score'}) async {
     try {
+      // 연결 테스트 먼저 수행
+      final isConnected = await testConnection();
+      if (!isConnected) {
+        throw Exception('서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.');
+      }
+
       final response = await _dio.get('/issues', queryParameters: {
         'sort': sortBy,
       });
@@ -29,7 +47,16 @@ class ApiService {
       throw Exception('Failed to load issues');
     } catch (e) {
       if (e is DioException) {
-        throw Exception('네트워크 오류: ${e.message}');
+        switch (e.type) {
+          case DioExceptionType.connectionTimeout:
+            throw Exception('서버 연결 시간이 초과되었습니다. 서버가 실행 중인지 확인해주세요.');
+          case DioExceptionType.receiveTimeout:
+            throw Exception('서버 응답 시간이 초과되었습니다.');
+          case DioExceptionType.connectionError:
+            throw Exception('서버에 연결할 수 없습니다. 네트워크 상태를 확인해주세요.');
+          default:
+            throw Exception('네트워크 오류: ${e.message}');
+        }
       }
       throw Exception('이슈 로딩 실패: $e');
     }
@@ -46,7 +73,16 @@ class ApiService {
       throw Exception('Failed to load issue detail');
     } catch (e) {
       if (e is DioException) {
-        throw Exception('네트워크 오류: ${e.message}');
+        switch (e.type) {
+          case DioExceptionType.connectionTimeout:
+            throw Exception('서버 연결 시간이 초과되었습니다.');
+          case DioExceptionType.receiveTimeout:
+            throw Exception('서버 응답 시간이 초과되었습니다.');
+          case DioExceptionType.connectionError:
+            throw Exception('서버에 연결할 수 없습니다.');
+          default:
+            throw Exception('네트워크 오류: ${e.message}');
+        }
       }
       throw Exception('이슈 상세 로딩 실패: $e');
     }
