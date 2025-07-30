@@ -1,5 +1,6 @@
 // lib/utils/constants.dart
 import 'package:flutter/material.dart';
+import 'dart:io';
 
 class AppColors {
   static const Color primaryColor = Color(0xFF2196F3);
@@ -13,17 +14,37 @@ class AppColors {
 }
 
 class ApiConstants {
-  // 개발 환경
-  static const String baseUrl = 'http://localhost:3000/api';
+  // 플랫폼별 기본 URL
+  static String get baseUrl {
+    if (Platform.isAndroid) {
+      // 안드로이드 에뮬레이터는 10.0.2.2를 사용
+      return 'http://10.0.2.2:3000/api';
+    } else {
+      // iOS 시뮬레이터와 기타 플랫폼은 localhost 사용
+      return 'http://localhost:3000/api';
+    }
+  }
 
-  // 프로덕션 환경 (배포시 변경)
-  // static const String baseUrl = 'https://your-backend-url.com/api';
+  // 연결 시도할 URL 목록 (우선순위순)
+  static List<String> get possibleUrls {
+    if (Platform.isAndroid) {
+      return [
+        'http://10.0.2.2:3000/api',    // 안드로이드 에뮬레이터
+        'http://192.168.1.100:3000/api', // WiFi IP (예시)
+        'http://localhost:3000/api',
+        'http://127.0.0.1:3000/api',
+      ];
+    } else {
+      return [
+        'http://localhost:3000/api',
+        'http://127.0.0.1:3000/api',
+        'http://10.0.2.2:3000/api',
+      ];
+    }
+  }
 
-  // News API 키 (https://newsapi.org에서 발급)
+  // News API 키
   static const String newsApiKey = '4298913bb759467bbf9d04dbdddb9749';
-
-  // GPT API (선택사항)
-  static const String openAiApiKey = 'YOUR_OPENAI_API_KEY';
 }
 
 class AppStrings {
