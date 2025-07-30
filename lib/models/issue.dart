@@ -1,3 +1,4 @@
+// lib/models/issue.dart
 class Issue {
   final int id;
   final String title;
@@ -25,9 +26,9 @@ class Issue {
       title: json['title'],
       summary: json['summary'],
       createdAt: DateTime.parse(json['created_at']),
-      positivePercent: json['positive_percent'].toDouble(),
-      negativePercent: json['negative_percent'].toDouble(),
-      debateScore: json['debate_score'].toDouble(),
+      positivePercent: (json['positive_percent'] ?? 0.0).toDouble(),
+      negativePercent: (json['negative_percent'] ?? 0.0).toDouble(),
+      debateScore: (json['debate_score'] ?? 0.0).toDouble(),
       totalVotes: json['total_votes'] ?? 0,
     );
   }

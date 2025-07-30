@@ -1,3 +1,4 @@
+// lib/models/vote.dart
 class Vote {
   final int id;
   final int issueId;

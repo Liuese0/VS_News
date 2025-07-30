@@ -1,3 +1,4 @@
+// lib/services/api_service.dart
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../models/models.dart';
@@ -22,12 +23,15 @@ class ApiService {
       });
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = response.data['data'];
+        final List<dynamic> data = response.data['data'] ?? response.data;
         return data.map((json) => Issue.fromJson(json)).toList();
       }
       throw Exception('Failed to load issues');
     } catch (e) {
-      throw Exception('네트워크 오류: $e');
+      if (e is DioException) {
+        throw Exception('네트워크 오류: ${e.message}');
+      }
+      throw Exception('이슈 로딩 실패: $e');
     }
   }
 
@@ -37,11 +41,14 @@ class ApiService {
       final response = await _dio.get('/issues/$issueId');
 
       if (response.statusCode == 200) {
-        return Issue.fromJson(response.data['data']);
+        return Issue.fromJson(response.data['data'] ?? response.data);
       }
       throw Exception('Failed to load issue detail');
     } catch (e) {
-      throw Exception('네트워크 오류: $e');
+      if (e is DioException) {
+        throw Exception('네트워크 오류: ${e.message}');
+      }
+      throw Exception('이슈 상세 로딩 실패: $e');
     }
   }
 
@@ -51,12 +58,13 @@ class ApiService {
       final response = await _dio.get('/issues/$issueId/news');
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = response.data['data'];
+        final List<dynamic> data = response.data['data'] ?? response.data;
         return data.map((json) => News.fromJson(json)).toList();
       }
-      throw Exception('Failed to load news');
+      return [];
     } catch (e) {
-      throw Exception('네트워크 오류: $e');
+      print('뉴스 로딩 오류: $e');
+      return [];
     }
   }
 
@@ -69,7 +77,7 @@ class ApiService {
         'vote': vote,
       });
 
-      return response.statusCode == 201;
+      return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
       if (e is DioException && e.response?.statusCode == 409) {
         throw Exception('이미 투표하셨습니다.');
@@ -91,6 +99,7 @@ class ApiService {
       }
       return null;
     } catch (e) {
+      print('투표 확인 오류: $e');
       return null;
     }
   }
@@ -103,12 +112,13 @@ class ApiService {
       });
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = response.data['data'];
+        final List<dynamic> data = response.data['data'] ?? response.data;
         return data.map((json) => Comment.fromJson(json)).toList();
       }
-      throw Exception('Failed to load comments');
+      return [];
     } catch (e) {
-      throw Exception('댓글 로딩 실패: $e');
+      print('댓글 로딩 오류: $e');
+      return [];
     }
   }
 
@@ -116,7 +126,7 @@ class ApiService {
   Future<bool> postComment(Comment comment) async {
     try {
       final response = await _dio.post('/comments', data: comment.toJson());
-      return response.statusCode == 201;
+      return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
       throw Exception('댓글 작성 실패: $e');
     }

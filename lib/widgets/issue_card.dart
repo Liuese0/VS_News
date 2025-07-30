@@ -1,3 +1,4 @@
+// lib/widgets/issue_card.dart
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../utils/constants.dart';
@@ -17,10 +18,10 @@ class IssueCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppDimensions.padding),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          color: AppColors.cardColor,
+          borderRadius: BorderRadius.circular(AppDimensions.borderRadius),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
@@ -32,7 +33,7 @@ class IssueCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 논쟁 지수 뱃지
+            // 논쟁 지수 뱃지와 참여자 수
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -46,6 +47,7 @@ class IssueCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(
                         Icons.whatshot,
@@ -68,7 +70,7 @@ class IssueCard extends StatelessWidget {
                   '${issue.totalVotes}명 참여',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey[600],
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -81,6 +83,7 @@ class IssueCard extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -92,7 +95,7 @@ class IssueCard extends StatelessWidget {
               issue.summary,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[700],
+                color: AppColors.textSecondary,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -122,6 +125,7 @@ class IssueCard extends StatelessWidget {
                   style: const TextStyle(
                     color: Colors.blue,
                     fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
                 ),
                 Text(
@@ -129,6 +133,7 @@ class IssueCard extends StatelessWidget {
                   style: const TextStyle(
                     color: Colors.red,
                     fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
                 ),
               ],

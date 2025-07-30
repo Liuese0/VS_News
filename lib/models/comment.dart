@@ -1,3 +1,4 @@
+// lib/models/comment.dart
 class Comment {
   final int id;
   final int issueId;

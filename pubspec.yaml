@@ -1,5 +1,5 @@
 name: news_debater
-description: 뉴스 토론 앱
+description: 뉴스 토론 앱 - 뜨거운 이슈에 대한 여론을 확인하고 토론해보세요
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -34,6 +34,7 @@ dependencies:
   # 토스트 메시지
   fluttertoast: ^8.2.2
 
+  # URL 런처
   url_launcher: ^6.2.1
 
 dev_dependencies:
@@ -44,12 +45,12 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  assets:
-    - assets/images/
+  # assets:
+  #   - assets/images/
 
-  fonts:
-    - family: Pretendard
-      fonts:
-        - asset: assets/fonts/Pretendard-Regular.ttf
-        - asset: assets/fonts/Pretendard-Bold.ttf
-          weight: 700
+  # fonts:
+  #   - family: Pretendard
+  #     fonts:
+  #       - asset: assets/fonts/Pretendard-Regular.ttf
+  #       - asset: assets/fonts/Pretendard-Bold.ttf
+  #         weight: 700

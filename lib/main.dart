@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/issue_provider.dart';
@@ -21,17 +22,41 @@ class NewsDebaterApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => IssueProvider()),
       ],
       child: MaterialApp(
-        title: '뉴스 디베이터',
+        title: AppStrings.appName,
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
           primarySwatch: Colors.blue,
           primaryColor: AppColors.primaryColor,
           fontFamily: 'Pretendard',
           appBarTheme: const AppBarTheme(
             backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
+            foregroundColor: AppColors.textPrimary,
             elevation: 0,
+            centerTitle: true,
           ),
           scaffoldBackgroundColor: AppColors.backgroundColor,
+          cardTheme: CardTheme(
+            color: AppColors.cardColor,
+            elevation: AppDimensions.cardElevation,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppDimensions.borderRadius),
+            ),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 2,
+            ),
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primaryColor,
+            ),
+          ),
         ),
         home: const SplashScreen(),
       ),
