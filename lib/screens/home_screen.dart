@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/models.dart';
 import '../providers/issue_provider.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/issue_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../screens/issue_detail_screen.dart';
-import '../screens/admin_screen.dart';
 import '../screens/news_explorer_screen.dart';
 import '../utils/constants.dart';
 
@@ -20,6 +21,7 @@ class _UpdatedHomeScreenState extends State<UpdatedHomeScreen>
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
   String _sortBy = 'debate_score';
+  bool _showOnlyMyDebates = true; // 내가 참여한 토론만 보기 필터
 
   @override
   void initState() {
@@ -237,208 +239,200 @@ class _UpdatedHomeScreenState extends State<UpdatedHomeScreen>
           _buildNewsExplorerContent(),
         ],
       ),
-      floatingActionButton: _tabController.index == 0
-          ? FloatingActionButton(
-        onPressed: _showAdminDialog,
-        backgroundColor: AppColors.primaryColor,
-        tooltip: '이슈 등록',
-        child: const Icon(Icons.add, color: Colors.white),
-      )
-          : null,
     );
   }
 
   Widget _buildIssuesTab() {
-    return Consumer<IssueProvider>(
-      builder: (context, provider, child) {
-        if (provider.isLoading) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text(AppStrings.loading),
-              ],
-            ),
-          );
-        }
-
-        if (provider.error != null) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.error_outline,
-                  size: 64,
-                  color: AppColors.errorColor,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  provider.error!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: AppColors.errorColor,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _loadIssues,
-                  child: const Text(AppStrings.retry),
-                ),
-              ],
-            ),
-          );
-        }
-
-        if (provider.issues.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.article_outlined,
-                  size: 64,
-                  color: AppColors.textSecondary,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  '아직 등록된 이슈가 없습니다',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '뉴스 둘러보기에서 논쟁 이슈를 찾아보세요!',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _loadIssues,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('새로고침'),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        _tabController.animateTo(1);
-                      },
-                      icon: const Icon(Icons.explore),
-                      label: const Text('뉴스 탐색'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.secondaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: _loadIssues,
-          child: ListView.separated(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(AppDimensions.padding),
-            itemCount: provider.issues.length,
-            separatorBuilder: (context, index) =>
-            const SizedBox(height: AppDimensions.margin),
-            itemBuilder: (context, index) {
-              final issue = provider.issues[index];
-              return IssueCard(
-                issue: issue,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => IssueDetailScreen(issue: issue),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  void _showAdminDialog() {
-    final TextEditingController passwordController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimensions.borderRadius),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.admin_panel_settings, color: AppColors.primaryColor),
-            SizedBox(width: 8),
-            Text('관리자 기능'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('관리자 비밀번호를 입력하세요'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: '비밀번호',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.lock),
+    return Column(
+      children: [
+        // 내가 참여한 토론만 보기 필터
+        Container(
+          padding: const EdgeInsets.all(AppDimensions.padding),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.grey[200]!,
+                width: 1,
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              passwordController.dispose();
-              Navigator.pop(context);
-            },
-            child: const Text('취소'),
           ),
-          ElevatedButton(
-            onPressed: () {
-              // 간단한 비밀번호 체크 (실제로는 더 안전한 방법 사용)
-              if (passwordController.text == 'admin123') {
-                passwordController.dispose();
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AdminScreen(),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('비밀번호가 틀렸습니다'),
-                    backgroundColor: AppColors.errorColor,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                '내가 참여한 토론만 보기',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Switch(
+                value: _showOnlyMyDebates,
+                onChanged: (value) {
+                  setState(() {
+                    _showOnlyMyDebates = value;
+                  });
+                },
+                activeColor: AppColors.primaryColor,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Consumer<IssueProvider>(
+            builder: (context, provider, child) {
+              if (provider.isLoading) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(AppStrings.loading),
+                    ],
                   ),
                 );
               }
+
+              if (provider.error != null) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: AppColors.errorColor,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        provider.error!,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: AppColors.errorColor,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: _loadIssues,
+                        child: const Text(AppStrings.retry),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // 필터링 로직: 내가 참여한 토론만 보기
+              List<Issue> displayIssues = provider.issues;
+              if (_showOnlyMyDebates) {
+                final userId = context.read<AuthProvider>().userId;
+                displayIssues = provider.issues.where((issue) {
+                  // 여기서는 실제로 투표했는지 확인하는 로직이 필요합니다
+                  // 현재는 임시로 모든 이슈를 표시하도록 설정
+                  // 실제 구현 시에는 provider에서 사용자의 투표 여부를 확인해야 합니다
+                  return provider.hasUserVoted(issue.id, userId);
+                }).toList();
+              }
+
+              if (displayIssues.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.article_outlined,
+                        size: 64,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _showOnlyMyDebates
+                            ? '참여한 토론이 없습니다'
+                            : '등록된 이슈가 없습니다',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _showOnlyMyDebates
+                            ? '토론에 참여해보세요!'
+                            : '뉴스 둘러보기에서 논쟁 이슈를 찾아보세요!',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (_showOnlyMyDebates)
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _showOnlyMyDebates = false;
+                                });
+                              },
+                              icon: const Icon(Icons.list),
+                              label: const Text('전체 토론 보기'),
+                            ),
+                          if (!_showOnlyMyDebates) ...[
+                            ElevatedButton.icon(
+                              onPressed: _loadIssues,
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('새로고침'),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                _tabController.animateTo(1);
+                              },
+                              icon: const Icon(Icons.explore),
+                              label: const Text('뉴스 탐색'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.secondaryColor,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return RefreshIndicator(
+                onRefresh: _loadIssues,
+                child: ListView.separated(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(AppDimensions.padding),
+                  itemCount: displayIssues.length,
+                  separatorBuilder: (context, index) =>
+                  const SizedBox(height: AppDimensions.margin),
+                  itemBuilder: (context, index) {
+                    final issue = displayIssues[index];
+                    return IssueCard(
+                      issue: issue,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => IssueDetailScreen(issue: issue),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              );
             },
-            child: const Text('확인'),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

@@ -30,13 +30,13 @@ class AppColors {
 class ApiConstants {
   // 실제 기기용 기본 URL
   static String get baseUrl {
-    return 'http://172.30.1.13:3000/api';
+    return 'http://172.30.1.76:3000/api';
   }
 
   // 연결 시도할 URL 목록 (우선순위순)
   static List<String> get possibleUrls {
     return [
-      'http://172.30.1.13:3000/api',    // 실제 PC IP
+      'http://172.30.1.76:3000/api',    // 실제 PC IP
       'http://localhost:3000/api',
       'http://127.0.0.1:3000/api',
       'http://10.0.2.2:3000/api',        // 안드로이드 에뮬레이터용
