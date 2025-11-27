@@ -1,12 +1,15 @@
 // lib/screens/improved_news_explorer_screen.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../services/news_auto_service.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/category_chip.dart';
 import '../widgets/tag_chip.dart';
 import '../utils/constants.dart';
+import '../providers/auth_provider.dart';
+import '../providers/news_comment_provider.dart';
 
 class ImprovedNewsExplorerScreen extends StatefulWidget {
   const ImprovedNewsExplorerScreen({super.key});
@@ -128,14 +131,9 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
   Widget _buildNewsTab() {
     return Column(
       children: [
-        // 카테고리 선택
         _buildCategorySelector(),
-
-        // 태그 선택 (선택된 카테고리에 태그가 있는 경우)
         if (_getSelectedCategoryTags().isNotEmpty)
           _buildTagSelector(),
-
-        // 뉴스 목록
         Expanded(
           child: _buildNewsList(),
         ),
@@ -187,7 +185,7 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
               onTap: () {
                 setState(() {
                   _selectedCategory = category.name;
-                  _selectedTag = null; // 카테고리 변경 시 태그 초기화
+                  _selectedTag = null;
                 });
                 _loadNews();
               },
@@ -207,7 +205,7 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppDimensions.padding),
-        itemCount: tags.length + 1, // +1 for "전체" option
+        itemCount: tags.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
             return Padding(
@@ -301,8 +299,11 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
   }
 
   Widget _buildImprovedNewsCard(AutoCollectedNews news) {
-    final newsId = news.url; // URL을 unique ID로 사용
+    final newsId = news.url;
     final isFavorite = _favoriteNewsIds.contains(newsId);
+    final newsCommentProvider = context.watch<NewsCommentProvider>();
+    final commentCount = newsCommentProvider.getCommentCount(news.url);
+    final participantCount = newsCommentProvider.getParticipantCount(news.url);
 
     return GestureDetector(
       onTap: () => _showNewsDetailWithDiscussion(news),
@@ -322,7 +323,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 이미지 (있는 경우)
             if (news.imageUrl != null && news.imageUrl!.isNotEmpty)
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(
@@ -352,7 +352,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 카테고리, 태그, 즐겨찾기 버튼
                   Row(
                     children: [
                       Container(
@@ -394,7 +393,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
                         ),
                       ],
                       const Spacer(),
-                      // 즐겨찾기 버튼
                       IconButton(
                         icon: Icon(
                           isFavorite ? Icons.favorite : Icons.favorite_border,
@@ -414,7 +412,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
                   ),
                   const SizedBox(height: 8),
 
-                  // 제목
                   Text(
                     news.title,
                     style: const TextStyle(
@@ -428,7 +425,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
                   ),
                   const SizedBox(height: 6),
 
-                  // 설명
                   Text(
                     news.description,
                     style: const TextStyle(
@@ -441,7 +437,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
                   ),
                   const SizedBox(height: 12),
 
-                  // 하단 정보 및 액션 버튼
                   Row(
                     children: [
                       Icon(
@@ -459,28 +454,41 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
                         ),
                       ),
                       const Spacer(),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.comment_outlined,
-                            size: 16,
-                            color: AppColors.textSecondary,
+                      if (participantCount > 0) ...[
+                        Icon(
+                          Icons.people,
+                          size: 14,
+                          color: AppColors.primaryColor,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$participantCount명',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.primaryColor,
+                            fontWeight: FontWeight.bold,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '토론하기',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(
-                            Icons.arrow_forward_ios,
-                            size: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ],
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Icon(
+                        Icons.comment_outlined,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        commentCount > 0 ? '$commentCount개' : '토론하기',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 12,
+                        color: AppColors.textSecondary,
                       ),
                     ],
                   ),
@@ -510,7 +518,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 헤더
           Container(
             padding: const EdgeInsets.all(AppDimensions.padding),
             decoration: BoxDecoration(
@@ -558,7 +565,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
             ),
           ),
 
-          // 내용
           Padding(
             padding: const EdgeInsets.all(AppDimensions.padding),
             child: Column(
@@ -585,7 +591,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
                 ),
                 const SizedBox(height: 12),
 
-                // 찬반 뉴스 개수
                 Row(
                   children: [
                     Container(
@@ -825,27 +830,13 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 
   Future<void> _loadComments() async {
-    // 임시 댓글 데이터 (실제로는 API에서 로드)
-    await Future.delayed(const Duration(milliseconds: 500));
+    final newsCommentProvider = context.read<NewsCommentProvider>();
+
+    // Provider에서 기존 댓글 가져오기
+    final existingComments = newsCommentProvider.getComments(widget.news.url);
+
     setState(() {
-      _comments = [
-        NewsComment(
-          id: 1,
-          newsUrl: widget.news.url,
-          nickname: '뉴스러버',
-          stance: 'pro',
-          content: '이 뉴스 정말 흥미롭네요. 앞으로 어떻게 발전할지 기대됩니다.',
-          createdAt: DateTime.now().subtract(const Duration(minutes: 30)),
-        ),
-        NewsComment(
-          id: 2,
-          newsUrl: widget.news.url,
-          nickname: '분석가',
-          stance: 'con',
-          content: '하지만 여러 문제점들이 있을 것 같은데요. 좀 더 신중하게 접근해야 할 것 같습니다.',
-          createdAt: DateTime.now().subtract(const Duration(hours: 1)),
-        ),
-      ];
+      _comments = List.from(existingComments);
     });
   }
 
@@ -865,7 +856,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           ),
           child: Column(
             children: [
-              // 드래그 핸들
               Container(
                 width: 40,
                 height: 4,
@@ -882,12 +872,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 뉴스 내용
                       _buildNewsContent(),
-
                       const Divider(thickness: 8, color: Color(0xFFF5F5F5)),
-
-                      // 토론 섹션
                       _buildDiscussionSection(),
                     ],
                   ),
@@ -906,7 +892,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 카테고리와 태그
           Wrap(
             spacing: 8,
             runSpacing: 4,
@@ -929,7 +914,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           ),
           const SizedBox(height: 16),
 
-          // 제목
           Text(
             widget.news.title,
             style: const TextStyle(
@@ -940,7 +924,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           ),
           const SizedBox(height: 12),
 
-          // 소스와 시간
           Row(
             children: [
               Text(
@@ -963,7 +946,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           ),
           const SizedBox(height: 16),
 
-          // 이미지 (있는 경우)
           if (widget.news.imageUrl != null && widget.news.imageUrl!.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
@@ -985,7 +967,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           if (widget.news.imageUrl != null && widget.news.imageUrl!.isNotEmpty)
             const SizedBox(height: 16),
 
-          // 내용
           Text(
             widget.news.description,
             style: const TextStyle(
@@ -996,7 +977,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           ),
           const SizedBox(height: 24),
 
-          // 원문 보기 버튼
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -1015,12 +995,13 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 
   Widget _buildDiscussionSection() {
+    final participantCount = context.watch<NewsCommentProvider>().getParticipantCount(widget.news.url);
+
     return Padding(
       padding: const EdgeInsets.all(AppDimensions.padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 토론 헤더
           Row(
             children: [
               const Icon(Icons.forum, color: AppColors.primaryColor),
@@ -1034,6 +1015,23 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                 ),
               ),
               const Spacer(),
+              if (participantCount > 0) ...[
+                Icon(
+                  Icons.people,
+                  size: 16,
+                  color: AppColors.primaryColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '$participantCount명',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               Text(
                 '${_comments.length}개 의견',
                 style: const TextStyle(
@@ -1045,11 +1043,9 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           ),
           const SizedBox(height: 16),
 
-          // 댓글 입력
           _buildCommentInput(),
           const SizedBox(height: 20),
 
-          // 댓글 목록
           const Text(
             '토론 의견',
             style: TextStyle(
@@ -1105,7 +1101,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           ),
           const SizedBox(height: 12),
 
-          // 찬반 선택
           Row(
             children: [
               Expanded(
@@ -1141,7 +1136,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
           const SizedBox(height: 8),
 
-          // 댓글 입력
           TextField(
             controller: _commentController,
             maxLines: 3,
@@ -1153,7 +1147,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           ),
           const SizedBox(height: 12),
 
-          // 작성 버튼
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -1192,7 +1185,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         children: [
           Row(
             children: [
-              // 찬반 뱃지
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 8,
@@ -1225,7 +1217,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                 ),
               ),
               const SizedBox(width: 8),
-              // 닉네임
               Text(
                 comment.nickname,
                 style: const TextStyle(
@@ -1234,7 +1225,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                 ),
               ),
               const Spacer(),
-              // 작성 시간
               Text(
                 _formatDateTime(comment.createdAt),
                 style: const TextStyle(
@@ -1245,7 +1235,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ],
           ),
           const SizedBox(height: 8),
-          // 댓글 내용
           Text(
             comment.content,
             style: const TextStyle(
@@ -1270,20 +1259,23 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
     setState(() => _isSubmittingComment = true);
 
     try {
-      // 실제로는 API 호출
-      await Future.delayed(const Duration(seconds: 1));
+      final authProvider = context.read<AuthProvider>();
+      final newsCommentProvider = context.read<NewsCommentProvider>();
 
       final newComment = NewsComment(
-        id: _comments.length + 1,
+        id: DateTime.now().millisecondsSinceEpoch,
         newsUrl: widget.news.url,
-        nickname: '사용자${DateTime.now().millisecondsSinceEpoch % 1000}',
+        nickname: authProvider.nickname,
         stance: _selectedStance,
         content: _commentController.text.trim(),
         createdAt: DateTime.now(),
       );
 
+      // Provider에 댓글 추가
+      newsCommentProvider.addComment(widget.news.url, newComment);
+
       setState(() {
-        _comments.insert(0, newComment); // 최신 댓글을 맨 위에 추가
+        _comments.insert(0, newComment);
         _commentController.clear();
       });
 
@@ -1310,7 +1302,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 
   Future<void> _launchUrl(String url) async {
-    // URL 실행 로직
     print('Opening URL: $url');
   }
 

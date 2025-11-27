@@ -1,30 +1,33 @@
-// lib/screens/improved_home_screen.dart
+// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/issue_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/news_comment_provider.dart';
 import '../widgets/issue_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../screens/issue_detail_screen.dart';
 import '../screens/news_explorer_screen.dart';
 import '../utils/constants.dart';
+import '../services/news_auto_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _ImprovedHomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _ImprovedHomeScreenState extends State<HomeScreen>
+class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
+  final NewsAutoService _newsService = NewsAutoService();
 
-  List<Issue> _popularIssues = [];
-  List<Issue> _participatedIssues = [];
-  List<Issue> _favoriteIssues = [];
+  List<NewsDiscussionItem> _popularDiscussions = [];
+  List<NewsDiscussionItem> _participatedDiscussions = [];
+  List<NewsDiscussionItem> _favoriteDiscussions = [];
   bool _isLoading = false;
 
   @override
@@ -40,20 +43,18 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
     setState(() => _isLoading = true);
 
     try {
-      final issueProvider = context.read<IssueProvider>();
-      final authProvider = context.read<AuthProvider>();
+      final newsCommentProvider = context.read<NewsCommentProvider>();
 
-      // 인기 토론 (10개)
-      await issueProvider.loadIssues(sortBy: 'debate_score');
-      _popularIssues = issueProvider.issues.take(10).toList();
+      // 인기 토론 (참여 인원수 상위 10개)
+      final popularUrls = newsCommentProvider.getPopularNewsUrls();
+      _popularDiscussions = await _loadDiscussionsFromUrls(popularUrls);
 
-      // 참여한 토론 (최신 5개)
-      _participatedIssues = issueProvider.issues.where((issue) {
-        return issueProvider.hasUserVoted(issue.id, authProvider.userId);
-      }).take(5).toList();
+      // 참여한 토론 (최신 10개)
+      final participatedUrls = newsCommentProvider.participatedNewsUrls.take(10).toList();
+      _participatedDiscussions = await _loadDiscussionsFromUrls(participatedUrls);
 
-      // 즐겨찾기 토론 (임시 데이터 - 실제로는 로컬 저장소에서 불러와야 함)
-      _favoriteIssues = await _loadFavoriteIssues();
+      // 즐겨찾기 토론 (로컬 저장소에서 불러오기 - 추후 구현)
+      _favoriteDiscussions = [];
 
     } catch (e) {
       print('데이터 로딩 오류: $e');
@@ -62,10 +63,35 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<List<Issue>> _loadFavoriteIssues() async {
-    // 실제로는 SharedPreferences 또는 로컬 DB에서 불러와야 함
-    // 여기서는 임시로 빈 리스트 반환
-    return [];
+  Future<List<NewsDiscussionItem>> _loadDiscussionsFromUrls(List<String> urls) async {
+    List<NewsDiscussionItem> discussions = [];
+    final newsCommentProvider = context.read<NewsCommentProvider>();
+
+    // 실제 앱에서는 뉴스 데이터를 캐싱하거나 API에서 가져와야 함
+    // 여기서는 URL만으로 기본 정보 생성
+    for (String url in urls) {
+      final comments = newsCommentProvider.getComments(url);
+      final participantCount = newsCommentProvider.getParticipantCount(url);
+
+      if (comments.isNotEmpty) {
+        // 첫 번째 댓글에서 뉴스 정보 추출 (임시)
+        discussions.add(NewsDiscussionItem(
+          newsUrl: url,
+          title: _extractTitleFromUrl(url),
+          participantCount: participantCount,
+          commentCount: comments.length,
+          lastCommentTime: comments.first.createdAt,
+        ));
+      }
+    }
+
+    return discussions;
+  }
+
+  String _extractTitleFromUrl(String url) {
+    // URL에서 제목 추출 (임시 방법)
+    // 실제로는 뉴스 데이터를 저장하고 불러와야 함
+    return url.split('/').last.replaceAll('-', ' ').replaceAll('.html', '');
   }
 
   @override
@@ -77,13 +103,15 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
           IconButton(
             icon: const Icon(Icons.explore),
             tooltip: '뉴스 탐색',
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const ImprovedNewsExplorerScreen(),
                 ),
               );
+              // 뉴스 탐색에서 돌아온 후 데이터 새로고침
+              _loadAllData();
             },
           ),
           IconButton(
@@ -136,19 +164,20 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildPopularTab() {
-    if (_popularIssues.isEmpty) {
+    if (_popularDiscussions.isEmpty) {
       return _buildEmptyState(
         icon: Icons.whatshot_outlined,
         title: '인기 토론이 없습니다',
         subtitle: '뉴스를 둘러보고 새로운 토론을 시작해보세요!',
         actionLabel: '뉴스 탐색하기',
-        onAction: () {
-          Navigator.push(
+        onAction: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const ImprovedNewsExplorerScreen(),
             ),
           );
+          _loadAllData();
         },
       );
     }
@@ -158,19 +187,19 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.all(AppDimensions.padding),
-        itemCount: _popularIssues.length + 1, // +1 for header
+        itemCount: _popularDiscussions.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
             return _buildSectionHeader(
               title: '🔥 인기 토론 TOP 10',
-              subtitle: '가장 뜨거운 논쟁들을 확인해보세요',
+              subtitle: '가장 많은 사람들이 참여한 토론',
             );
           }
 
-          final issue = _popularIssues[index - 1];
+          final discussion = _popularDiscussions[index - 1];
           return Padding(
             padding: const EdgeInsets.only(bottom: AppDimensions.margin),
-            child: _buildRankingIssueCard(issue, index),
+            child: _buildRankingDiscussionCard(discussion, index),
           );
         },
       ),
@@ -178,14 +207,14 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildParticipatedTab() {
-    if (_participatedIssues.isEmpty) {
+    if (_participatedDiscussions.isEmpty) {
       return _buildEmptyState(
         icon: Icons.history_outlined,
         title: '참여한 토론이 없습니다',
         subtitle: '토론에 참여하고 다양한 의견을 나눠보세요!',
         actionLabel: '토론 참여하기',
         onAction: () {
-          _tabController.animateTo(0); // 인기 토론 탭으로 이동
+          _tabController.animateTo(0);
         },
       );
     }
@@ -194,7 +223,7 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
       onRefresh: _loadAllData,
       child: ListView.builder(
         padding: const EdgeInsets.all(AppDimensions.padding),
-        itemCount: _participatedIssues.length + 1,
+        itemCount: _participatedDiscussions.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
             return _buildSectionHeader(
@@ -203,10 +232,10 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
             );
           }
 
-          final issue = _participatedIssues[index - 1];
+          final discussion = _participatedDiscussions[index - 1];
           return Padding(
             padding: const EdgeInsets.only(bottom: AppDimensions.margin),
-            child: _buildParticipatedIssueCard(issue),
+            child: _buildParticipatedDiscussionCard(discussion),
           );
         },
       ),
@@ -214,7 +243,7 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildFavoriteTab() {
-    if (_favoriteIssues.isEmpty) {
+    if (_favoriteDiscussions.isEmpty) {
       return _buildEmptyState(
         icon: Icons.favorite_outline,
         title: '즐겨찾기한 토론이 없습니다',
@@ -230,19 +259,19 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
       onRefresh: _loadAllData,
       child: ListView.builder(
         padding: const EdgeInsets.all(AppDimensions.padding),
-        itemCount: _favoriteIssues.length + 1,
+        itemCount: _favoriteDiscussions.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
             return _buildSectionHeader(
               title: '⭐ 즐겨찾기 토론',
-              subtitle: '내가 관심있어 하는 토론들 (최대 100개)',
+              subtitle: '내가 관심있어 하는 토론들',
             );
           }
 
-          final issue = _favoriteIssues[index - 1];
+          final discussion = _favoriteDiscussions[index - 1];
           return Padding(
             padding: const EdgeInsets.only(bottom: AppDimensions.margin),
-            child: _buildFavoriteIssueCard(issue),
+            child: _buildFavoriteDiscussionCard(discussion),
           );
         },
       ),
@@ -291,16 +320,9 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildRankingIssueCard(Issue issue, int rank) {
+  Widget _buildRankingDiscussionCard(NewsDiscussionItem discussion, int rank) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => IssueDetailScreen(issue: issue),
-          ),
-        );
-      },
+      onTap: () => _openNewsExplorer(discussion.newsUrl),
       child: Container(
         padding: const EdgeInsets.all(AppDimensions.padding),
         decoration: BoxDecoration(
@@ -336,68 +358,47 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
               ),
             ),
             const SizedBox(width: 12),
-            // 이슈 내용
+            // 토론 내용
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          issue.title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '논쟁도 ${issue.debateScore.toInt()}',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppColors.primaryColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
+                  Text(
+                    discussion.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
+                      Icon(
+                        Icons.people,
+                        size: 16,
+                        color: AppColors.primaryColor,
+                      ),
+                      const SizedBox(width: 4),
                       Text(
-                        '찬성 ${issue.positivePercent.toStringAsFixed(1)}%',
+                        '${discussion.participantCount}명 참여',
                         style: const TextStyle(
                           fontSize: 12,
-                          color: Colors.blue,
+                          color: AppColors.primaryColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '반대 ${issue.negativePercent.toStringAsFixed(1)}%',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      const SizedBox(width: 12),
+                      Icon(
+                        Icons.comment,
+                        size: 16,
+                        color: AppColors.textSecondary,
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 4),
                       Text(
-                        '${issue.totalVotes}명 참여',
+                        '${discussion.commentCount}개',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -408,34 +409,27 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
                 ],
               ),
             ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: AppColors.textSecondary,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildParticipatedIssueCard(Issue issue) {
-    // 사용자의 투표 정보 가져오기 (임시로 찬성으로 설정)
-    String userVote = 'pro'; // 실제로는 provider에서 가져와야 함
-
+  Widget _buildParticipatedDiscussionCard(NewsDiscussionItem discussion) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => IssueDetailScreen(issue: issue),
-          ),
-        );
-      },
+      onTap: () => _openNewsExplorer(discussion.newsUrl),
       child: Container(
         padding: const EdgeInsets.all(AppDimensions.padding),
         decoration: BoxDecoration(
           color: AppColors.cardColor,
           borderRadius: BorderRadius.circular(AppDimensions.borderRadius),
           border: Border.all(
-            color: userVote == 'pro'
-                ? Colors.blue.withOpacity(0.3)
-                : Colors.red.withOpacity(0.3),
+            color: AppColors.primaryColor.withOpacity(0.3),
             width: 2,
           ),
           boxShadow: [
@@ -457,25 +451,23 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: userVote == 'pro'
-                        ? Colors.blue.withOpacity(0.1)
-                        : Colors.red.withOpacity(0.1),
+                    color: AppColors.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        userVote == 'pro' ? Icons.thumb_up : Icons.thumb_down,
+                        Icons.check_circle,
                         size: 16,
-                        color: userVote == 'pro' ? Colors.blue : Colors.red,
+                        color: AppColors.primaryColor,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        userVote == 'pro' ? '찬성' : '반대',
+                        '참여함',
                         style: TextStyle(
                           fontSize: 12,
-                          color: userVote == 'pro' ? Colors.blue : Colors.red,
+                          color: AppColors.primaryColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -484,7 +476,7 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
                 ),
                 const Spacer(),
                 Text(
-                  _formatDateTime(issue.createdAt),
+                  _formatDateTime(discussion.lastCommentTime),
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -494,7 +486,7 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              issue.title,
+              discussion.title,
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -506,26 +498,28 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
             const SizedBox(height: 8),
             Row(
               children: [
+                Icon(
+                  Icons.people,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 4),
                 Text(
-                  '찬성 ${issue.positivePercent.toStringAsFixed(1)}%',
+                  '${discussion.participantCount}명',
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '반대 ${issue.negativePercent.toStringAsFixed(1)}%',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                  ),
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.comment,
+                  size: 14,
+                  color: AppColors.textSecondary,
                 ),
-                const Spacer(),
+                const SizedBox(width: 4),
                 Text(
-                  '${issue.totalVotes}명 참여',
+                  '${discussion.commentCount}개',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -539,16 +533,9 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildFavoriteIssueCard(Issue issue) {
+  Widget _buildFavoriteDiscussionCard(NewsDiscussionItem discussion) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => IssueDetailScreen(issue: issue),
-          ),
-        );
-      },
+      onTap: () => _openNewsExplorer(discussion.newsUrl),
       child: Container(
         padding: const EdgeInsets.all(AppDimensions.padding),
         decoration: BoxDecoration(
@@ -575,7 +562,7 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    issue.title,
+                    discussion.title,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -588,45 +575,36 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
                 IconButton(
                   icon: const Icon(Icons.favorite, color: Colors.red),
                   onPressed: () {
-                    // 즐겨찾기 해제 로직
-                    _removeFavorite(issue);
+                    _removeFavorite(discussion);
                   },
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              issue.summary,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
             const SizedBox(height: 12),
             Row(
               children: [
+                Icon(
+                  Icons.people,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 4),
                 Text(
-                  '찬성 ${issue.positivePercent.toStringAsFixed(1)}%',
+                  '${discussion.participantCount}명 참여',
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
+                    color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '반대 ${issue.negativePercent.toStringAsFixed(1)}%',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                  ),
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.comment,
+                  size: 14,
+                  color: AppColors.textSecondary,
                 ),
-                const Spacer(),
+                const SizedBox(width: 4),
                 Text(
-                  '${issue.totalVotes}명 참여',
+                  '${discussion.commentCount}개 댓글',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -721,7 +699,7 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _removeFavorite(Issue issue) {
+  void _removeFavorite(NewsDiscussionItem discussion) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -736,7 +714,7 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
             onPressed: () {
               Navigator.pop(context);
               setState(() {
-                _favoriteIssues.removeWhere((i) => i.id == issue.id);
+                _favoriteDiscussions.removeWhere((d) => d.newsUrl == discussion.newsUrl);
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -752,10 +730,37 @@ class _ImprovedHomeScreenState extends State<HomeScreen>
     );
   }
 
+  void _openNewsExplorer(String newsUrl) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ImprovedNewsExplorerScreen(),
+      ),
+    );
+    _loadAllData();
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
+}
+
+// 뉴스 토론 아이템 모델
+class NewsDiscussionItem {
+  final String newsUrl;
+  final String title;
+  final int participantCount;
+  final int commentCount;
+  final DateTime lastCommentTime;
+
+  NewsDiscussionItem({
+    required this.newsUrl,
+    required this.title,
+    required this.participantCount,
+    required this.commentCount,
+    required this.lastCommentTime,
+  });
 }
