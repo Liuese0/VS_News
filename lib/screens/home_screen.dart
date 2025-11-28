@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/auth_provider.dart';
 import '../providers/news_comment_provider.dart';
 import '../screens/news_explorer_screen.dart';
+import '../screens/auth/welcome_screen.dart';
 import '../utils/constants.dart';
 import '../services/firestore_service.dart';
 
@@ -130,9 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.person_outline, color: Colors.white),
-                onPressed: () {
-                  // 프로필 화면으로 이동
-                },
+                onPressed: () => _showLogoutDialog(context, authProvider),
               ),
             ],
           ),
@@ -608,6 +607,53 @@ class _HomeScreenState extends State<HomeScreen> {
               color: isSelected ? AppColors.primaryColor : Colors.grey.shade600,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('로그아웃'),
+        content: const Text('정말 로그아웃하시겠습니까?\n앱을 삭제하면 계정 정보가 사라지니 주의하세요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                // 로그아웃 처리
+                await authProvider.logout();
+
+                if (context.mounted) {
+                  Navigator.pop(context); // 다이얼로그 닫기
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                        (route) => false,
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('로그아웃 실패: $e'),
+                      backgroundColor: AppColors.errorColor,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.errorColor,
+            ),
+            child: const Text('로그아웃'),
           ),
         ],
       ),

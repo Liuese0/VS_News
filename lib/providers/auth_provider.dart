@@ -93,4 +93,20 @@ class AuthProvider extends ChangeNotifier {
       print('사용자 정보 새로고침 실패: $e');
     }
   }
+
+  // 로그아웃
+  Future<void> logout() async {
+    try {
+      await _authService.logout();
+      _userId = '';
+      _nickname = '';
+      _isInitialized = false;
+      _hasExistingAccount = false;
+      _userInfo = null;
+      notifyListeners();
+    } catch (e) {
+      print('로그아웃 실패: $e');
+      rethrow;
+    }
+  }
 }
