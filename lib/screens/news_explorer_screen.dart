@@ -5,33 +5,41 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/models.dart';
 import '../services/news_auto_service.dart';
 import '../services/firestore_service.dart';
-import '../widgets/custom_app_bar.dart';
-import '../widgets/category_chip.dart';
-import '../widgets/tag_chip.dart';
 import '../utils/constants.dart';
 import '../providers/auth_provider.dart';
 import '../providers/news_comment_provider.dart';
 
-class ImprovedNewsExplorerScreen extends StatefulWidget {
-  const ImprovedNewsExplorerScreen({super.key});
+class ExploreScreen extends StatefulWidget {
+  const ExploreScreen({super.key});
 
   @override
-  State<ImprovedNewsExplorerScreen> createState() => _ImprovedNewsExplorerScreenState();
+  State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
+class _ExploreScreenState extends State<ExploreScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final NewsAutoService _newsService = NewsAutoService();
   final FirestoreService _firestoreService = FirestoreService();
+  final TextEditingController _searchController = TextEditingController();
 
-  String _selectedCategory = '인기';
-  String? _selectedTag;
+  String _selectedCategory = '전체';
   List<AutoCollectedNews> _newsList = [];
-  List<DebatableIssue> _debatableIssues = [];
   bool _isLoading = false;
-  bool _isLoadingIssues = false;
   Set<String> _favoriteNewsIds = <String>{};
+
+  // 카테고리 목록
+  final List<Map<String, dynamic>> _categories = [
+    {'name': '전체', 'icon': '📰'},
+    {'name': '정치', 'icon': '🏛️'},
+    {'name': '경제', 'icon': '💰'},
+    {'name': '사회', 'icon': '👥'},
+    {'name': '문화', 'icon': '🎭'},
+    {'name': '과학기술', 'icon': '🔬'},
+  ];
+
+  // 태그 목록
+  final List<String> _tags = ['정책', '부동산', '주식', '사건', '문화'];
 
   @override
   void initState() {
@@ -39,7 +47,6 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
     _tabController = TabController(length: 2, vsync: this);
     _loadFavorites();
     _loadNews();
-    _loadDebatableIssues();
   }
 
   Future<void> _loadFavorites() async {
@@ -61,12 +68,10 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
     try {
       List<AutoCollectedNews> newsList;
 
-      if (_selectedTag != null && _selectedCategory != '인기') {
-        newsList = await _newsService.searchNewsByTag(_selectedCategory, _selectedTag!);
-      } else if (_selectedCategory != '인기') {
-        newsList = await _newsService.searchNewsByCategory(_selectedCategory);
-      } else {
+      if (_selectedCategory == '전체') {
         newsList = await _newsService.collectKoreanNews();
+      } else {
+        newsList = await _newsService.searchNewsByCategory(_selectedCategory);
       }
 
       setState(() {
@@ -86,195 +91,181 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
     }
   }
 
-  Future<void> _loadDebatableIssues() async {
-    if (_isLoadingIssues) return;
-
-    setState(() => _isLoadingIssues = true);
-
-    try {
-      final issues = await _newsService.generateDebatableIssues();
-      setState(() {
-        _debatableIssues = issues;
-      });
-    } catch (e) {
-      print('논쟁적 이슈 로딩 실패: $e');
-    } finally {
-      setState(() => _isLoadingIssues = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(
-        title: '뉴스 탐색',
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: '실시간 뉴스', icon: Icon(Icons.newspaper)),
-            Tab(text: '논쟁 이슈', icon: Icon(Icons.forum)),
-          ],
-          labelColor: AppColors.primaryColor,
-          unselectedLabelColor: AppColors.textSecondary,
-          indicatorColor: AppColors.primaryColor,
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildNewsTab(),
-          _buildDebateTab(),
+        title: const Text(
+          '뉴스 디베이터',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline, color: AppColors.textPrimary),
+            onPressed: () {},
+          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildNewsTab() {
-    return Column(
-      children: [
-        _buildCategorySelector(),
-        if (_getSelectedCategoryTags().isNotEmpty)
-          _buildTagSelector(),
-        Expanded(
-          child: _buildNewsList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDebateTab() {
-    return RefreshIndicator(
-      onRefresh: _loadDebatableIssues,
-      child: _isLoadingIssues
-          ? const Center(child: CircularProgressIndicator())
-          : _debatableIssues.isEmpty
-          ? const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.forum_outlined, size: 64, color: AppColors.textSecondary),
-            SizedBox(height: 16),
-            Text('논쟁적인 이슈를 찾고 있습니다...', style: TextStyle(color: AppColors.textSecondary)),
-          ],
-        ),
-      )
-          : ListView.builder(
-        padding: const EdgeInsets.all(AppDimensions.padding),
-        itemCount: _debatableIssues.length,
-        itemBuilder: (context, index) {
-          return _buildDebatableIssueCard(_debatableIssues[index]);
-        },
-      ),
-    );
-  }
-
-  Widget _buildCategorySelector() {
-    return Container(
-      height: 60,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.padding),
-        itemCount: NewsCategory.allCategories.length,
-        itemBuilder: (context, index) {
-          final category = NewsCategory.allCategories[index];
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: CategoryChip(
-              category: category,
-              isSelected: _selectedCategory == category.name,
-              onTap: () {
-                setState(() {
-                  _selectedCategory = category.name;
-                  _selectedTag = null;
-                });
-                _loadNews();
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildTagSelector() {
-    final tags = _getSelectedCategoryTags();
-
-    return Container(
-      height: 40,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.padding),
-        itemCount: tags.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: TagChip(
-                tag: '전체',
-                isSelected: _selectedTag == null,
-                onTap: () {
-                  setState(() {
-                    _selectedTag = null;
-                  });
-                  _loadNews();
-                },
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(140),
+          child: Column(
+            children: [
+              // 검색 바
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: '관심 있는 글 검색',
+                      hintStyle: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 14,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Colors.grey.shade500,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            );
-          }
 
-          final tag = tags[index - 1];
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TagChip(
-              tag: tag,
-              isSelected: _selectedTag == tag,
-              onTap: () {
-                setState(() {
-                  _selectedTag = tag;
-                });
-                _loadNews();
-              },
-            ),
-          );
-        },
+              // 탭 버튼
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    _buildTabFilterButton('실시간 뉴스', true),
+                    const SizedBox(width: 8),
+                    _buildTabFilterButton('논쟁 이슈', false),
+                  ],
+                ),
+              ),
+
+              // 카테고리 필터
+              SizedBox(
+                height: 40,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _categories.length,
+                  itemBuilder: (context, index) {
+                    final category = _categories[index];
+                    final isSelected = _selectedCategory == category['name'];
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        selected: isSelected,
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(category['icon']),
+                            const SizedBox(width: 4),
+                            Text(
+                              category['name'],
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.white,
+                        selectedColor: AppColors.primaryColor,
+                        side: BorderSide(
+                          color: isSelected
+                              ? AppColors.primaryColor
+                              : Colors.grey.shade300,
+                        ),
+                        onSelected: (selected) {
+                          setState(() {
+                            _selectedCategory = category['name'];
+                          });
+                          _loadNews();
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _buildNewsList(),
+    );
+  }
+
+  Widget _buildTabFilterButton(String label, bool isSelected) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryColor : Colors.grey.shade300,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildNewsList() {
-    if (_isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('뉴스를 불러오는 중...'),
-          ],
-        ),
-      );
-    }
-
     if (_newsList.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.newspaper_outlined,
               size: 64,
-              color: AppColors.textSecondary,
+              color: Colors.grey.shade300,
             ),
             const SizedBox(height: 16),
-            Text(
-              _selectedTag != null
-                  ? '$_selectedCategory > $_selectedTag 뉴스가 없습니다'
-                  : '$_selectedCategory 뉴스가 없습니다',
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+            const Text(
+              '뉴스가 없습니다',
+              style: TextStyle(
                 fontSize: 16,
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 24),
@@ -290,16 +281,16 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
     return RefreshIndicator(
       onRefresh: _loadNews,
       child: ListView.builder(
-        padding: const EdgeInsets.all(AppDimensions.padding),
+        padding: const EdgeInsets.all(16),
         itemCount: _newsList.length,
         itemBuilder: (context, index) {
-          return _buildImprovedNewsCard(_newsList[index]);
+          return _buildNewsCard(_newsList[index]);
         },
       ),
     );
   }
 
-  Widget _buildImprovedNewsCard(AutoCollectedNews news) {
+  Widget _buildNewsCard(AutoCollectedNews news) {
     final newsId = news.url;
     final isFavorite = _favoriteNewsIds.contains(newsId);
     final newsCommentProvider = context.watch<NewsCommentProvider>();
@@ -309,14 +300,16 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
     return GestureDetector(
       onTap: () => _showNewsDetailWithDiscussion(news),
       child: Container(
-        margin: const EdgeInsets.only(bottom: AppDimensions.margin),
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.cardColor,
-          borderRadius: BorderRadius.circular(AppDimensions.borderRadius),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
@@ -324,345 +317,173 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (news.imageUrl != null && news.imageUrl!.isNotEmpty)
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppDimensions.borderRadius),
+            // 상단 정보 (카테고리, 시간, 북마크)
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('🔥', style: TextStyle(fontSize: 11)),
+                      const SizedBox(width: 4),
+                      Text(
+                        news.autoCategory,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                if (news.autoTags.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      news.autoTags.first,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                Text(
+                  _formatDateTime(news.publishedAt),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // 제목
+            Text(
+              news.title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+
+            // 설명
+            if (news.description.isNotEmpty)
+              Text(
+                news.description,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+
+            // 이미지 (있는 경우)
+            if (news.imageUrl != null && news.imageUrl!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
                 child: Image.network(
                   news.imageUrl!,
                   width: double.infinity,
-                  height: 150,
+                  height: 120,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       width: double.infinity,
-                      height: 150,
-                      color: Colors.grey[200],
-                      child: const Icon(
-                        Icons.image_not_supported,
-                        color: Colors.grey,
-                      ),
+                      height: 120,
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.image_not_supported),
                     );
                   },
                 ),
               ),
+            ],
 
-            Padding(
-              padding: const EdgeInsets.all(AppDimensions.padding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          news.autoCategory,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppColors.primaryColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      if (news.autoTags.isNotEmpty) ...[
-                        const SizedBox(width: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            news.autoTags.first,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ],
-                      const Spacer(),
-                      IconButton(
-                        icon: Icon(
-                          isFavorite ? Icons.favorite : Icons.favorite_border,
-                          color: isFavorite ? Colors.red : AppColors.textSecondary,
-                          size: 20,
-                        ),
-                        onPressed: () => _toggleFavorite(newsId),
-                      ),
-                      Text(
-                        _formatDateTime(news.publishedAt),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-                  Text(
-                    news.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                      height: 1.3,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+            // 하단 통계
+            Row(
+              children: [
+                Icon(
+                  Icons.favorite,
+                  size: 16,
+                  color: isFavorite ? Colors.red : Colors.grey.shade400,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  participantCount.toString(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: isFavorite ? Colors.red : Colors.grey.shade600,
                   ),
-                  const SizedBox(height: 6),
-
-                  Text(
-                    news.description,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                      height: 1.4,
-                    ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(width: 16),
+                Icon(
+                  Icons.comment,
+                  size: 16,
+                  color: Colors.grey.shade600,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  commentCount.toString(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
                   ),
-                  const SizedBox(height: 12),
-
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.source,
-                        size: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        news.source,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (participantCount > 0) ...[
-                        const Icon(
-                          Icons.people,
-                          size: 14,
-                          color: AppColors.primaryColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$participantCount명',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.primaryColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      const Icon(
-                        Icons.comment_outlined,
-                        size: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        commentCount > 0 ? '$commentCount개' : '토론하기',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ],
+                ),
+                const SizedBox(width: 16),
+                Icon(
+                  Icons.visibility,
+                  size: 16,
+                  color: Colors.grey.shade600,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${participantCount * 10}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
                   ),
-                ],
-              ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: Icon(
+                    isFavorite ? Icons.bookmark : Icons.bookmark_outline,
+                    size: 20,
+                    color: isFavorite ? AppColors.primaryColor : Colors.grey.shade400,
+                  ),
+                  onPressed: () => _toggleFavorite(newsId),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildDebatableIssueCard(DebatableIssue issue) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppDimensions.margin),
-      decoration: BoxDecoration(
-        color: AppColors.cardColor,
-        borderRadius: BorderRadius.circular(AppDimensions.borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppDimensions.padding),
-            decoration: BoxDecoration(
-              color: AppColors.primaryColor.withOpacity(0.1),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppDimensions.borderRadius),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    issue.category,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(Icons.forum, color: AppColors.primaryColor, size: 20),
-                const SizedBox(width: 4),
-                const Text(
-                  '논쟁 이슈',
-                  style: TextStyle(
-                    color: AppColors.primaryColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${issue.relatedNews.length}개 뉴스',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.padding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  issue.title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  issue.summary,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                    height: 1.4,
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.thumb_up, color: Colors.blue, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            '찬성 ${issue.proNews.length}',
-                            style: const TextStyle(
-                              color: Colors.blue,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.thumb_down, color: Colors.red, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            '반대 ${issue.conNews.length}',
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Spacer(),
-                    ElevatedButton.icon(
-                      onPressed: () => _createIssueFromDebatable(issue),
-                      icon: const Icon(Icons.add_circle_outline, size: 16),
-                      label: const Text('이슈 생성'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryColor,
-                        minimumSize: const Size(0, 32),
-                        textStyle: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<String> _getSelectedCategoryTags() {
-    final category = NewsCategory.findByName(_selectedCategory);
-    return category?.tags ?? [];
   }
 
   Future<void> _toggleFavorite(String newsUrl) async {
@@ -715,109 +536,26 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
     );
   }
 
-  void _createIssueFromDebatable(DebatableIssue issue) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('논쟁 이슈를 토론 주제로 등록'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('다음 이슈를 토론 주제로 등록하시겠습니까?'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    issue.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    issue.summary,
-                    style: const TextStyle(fontSize: 12),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _registerDebatableIssue(issue);
-            },
-            child: const Text('등록'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _registerDebatableIssue(DebatableIssue issue) async {
-    try {
-      await Future.delayed(const Duration(seconds: 1));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('토론 이슈가 성공적으로 등록되었습니다'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('이슈 등록 실패: $e'),
-            backgroundColor: AppColors.errorColor,
-          ),
-        );
-      }
-    }
-  }
-
   String _formatDateTime(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
 
-    if (difference.inDays > 0) {
-      return '${difference.inDays}일 전';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}시간 전';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}분 전';
-    } else {
-      return '방금 전';
-    }
+    if (difference.inMinutes < 1) return '방금 전';
+    if (difference.inMinutes < 60) return '${difference.inMinutes}분 전';
+    if (difference.inHours < 24) return '${difference.inHours}시간 전';
+    if (difference.inDays < 7) return '${difference.inDays}일 전';
+    return '${dateTime.month}/${dateTime.day}';
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 }
 
-// ========================================
-// 뉴스 상세보기 + 토론 위젯
-// ========================================
-
+// 뉴스 상세보기 + 토론 위젯 (기존 코드 유지)
 class NewsDetailWithDiscussion extends StatefulWidget {
   final AutoCollectedNews news;
 
@@ -843,8 +581,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
   Future<void> _loadComments() async {
     final newsCommentProvider = context.read<NewsCommentProvider>();
-
-    // Firestore에서 댓글 로드
     await newsCommentProvider.loadComments(widget.news.url);
 
     setState(() {
@@ -877,7 +613,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-
               Expanded(
                 child: SingleChildScrollView(
                   controller: scrollController,
@@ -900,42 +635,20 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
   Widget _buildNewsContent() {
     return Padding(
-      padding: const EdgeInsets.all(AppDimensions.padding),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              Chip(
-                label: Text(widget.news.autoCategory),
-                backgroundColor: AppColors.primaryColor.withOpacity(0.1),
-                labelStyle: const TextStyle(
-                  color: AppColors.primaryColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-              ...widget.news.autoTags.map((tag) => Chip(
-                label: Text(tag),
-                backgroundColor: Colors.grey.withOpacity(0.1),
-                labelStyle: const TextStyle(fontSize: 12),
-              )),
-            ],
-          ),
-          const SizedBox(height: 16),
-
           Text(
             widget.news.title,
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
+              height: 1.4,
             ),
           ),
-          const SizedBox(height: 12),
-
+          const SizedBox(height: 16),
           Row(
             children: [
               Text(
@@ -957,28 +670,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ],
           ),
           const SizedBox(height: 16),
-
-          if (widget.news.imageUrl != null && widget.news.imageUrl!.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                widget.news.imageUrl!,
-                width: double.infinity,
-                height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: double.infinity,
-                    height: 200,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.image_not_supported),
-                  );
-                },
-              ),
-            ),
-          if (widget.news.imageUrl != null && widget.news.imageUrl!.isNotEmpty)
-            const SizedBox(height: 16),
-
           Text(
             widget.news.description,
             style: const TextStyle(
@@ -988,11 +679,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ),
           ),
           const SizedBox(height: 24),
-
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () => _launchUrl(widget.news.url),
+              onPressed: () {},
               icon: const Icon(Icons.open_in_new),
               label: const Text('원문 보기'),
               style: ElevatedButton.styleFrom(
@@ -1007,81 +697,28 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 
   Widget _buildDiscussionSection() {
-    final participantCount = context.watch<NewsCommentProvider>().getParticipantCount(widget.news.url);
-
     return Padding(
-      padding: const EdgeInsets.all(AppDimensions.padding),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.forum, color: AppColors.primaryColor),
-              const SizedBox(width: 8),
-              const Text(
-                '이 뉴스에 대한 토론',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              if (participantCount > 0) ...[
-                const Icon(
-                  Icons.people,
-                  size: 16,
-                  color: AppColors.primaryColor,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '$participantCount명',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.primaryColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                '${_comments.length}개 의견',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          _buildCommentInput(),
-          const SizedBox(height: 20),
-
           const Text(
-            '토론 의견',
+            '이 뉴스에 대한 토론',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 12),
-
+          const SizedBox(height: 16),
+          _buildCommentInput(),
+          const SizedBox(height: 20),
           if (_comments.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Center(
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
                 child: Text(
-                  '아직 의견이 없습니다.\n첫 번째 의견을 남겨보세요!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                  ),
+                  '첫 번째 의견을 남겨보세요!',
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
               ),
             )
@@ -1094,25 +731,14 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
   Widget _buildCommentInput() {
     return Container(
-      padding: const EdgeInsets.all(AppDimensions.padding),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(AppDimensions.borderRadius),
-        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '의견 작성',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-
           Row(
             children: [
               Expanded(
@@ -1123,9 +749,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   activeColor: Colors.blue,
                   contentPadding: EdgeInsets.zero,
                   onChanged: (value) {
-                    setState(() {
-                      _selectedStance = value!;
-                    });
+                    setState(() => _selectedStance = value!);
                   },
                 ),
               ),
@@ -1137,28 +761,21 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   activeColor: Colors.red,
                   contentPadding: EdgeInsets.zero,
                   onChanged: (value) {
-                    setState(() {
-                      _selectedStance = value!;
-                    });
+                    setState(() => _selectedStance = value!);
                   },
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 8),
-
           TextField(
             controller: _commentController,
             maxLines: 3,
             decoration: const InputDecoration(
-              hintText: '이 뉴스에 대한 의견을 작성해주세요',
+              hintText: '의견을 작성해주세요',
               border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.all(12),
             ),
           ),
           const SizedBox(height: 12),
-
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -1167,9 +784,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                 backgroundColor: _selectedStance == 'pro' ? Colors.blue : Colors.red,
               ),
               child: _isSubmittingComment
-                  ? const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              )
+                  ? const CircularProgressIndicator(color: Colors.white)
                   : Text(_selectedStance == 'pro' ? '찬성 의견 작성' : '반대 의견 작성'),
             ),
           ),
@@ -1180,16 +795,15 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
   Widget _buildCommentItem(NewsComment comment) {
     return Container(
-      margin: const EdgeInsets.only(bottom: AppDimensions.margin),
-      padding: const EdgeInsets.all(AppDimensions.padding),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.cardColor,
-        borderRadius: BorderRadius.circular(AppDimensions.borderRadius),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: comment.isPro
               ? Colors.blue.withOpacity(0.3)
               : Colors.red.withOpacity(0.3),
-          width: 1,
         ),
       ),
       child: Column(
@@ -1198,43 +812,26 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: comment.isPro
                       ? Colors.blue.withOpacity(0.1)
                       : Colors.red.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      comment.isPro ? Icons.thumb_up : Icons.thumb_down,
-                      size: 14,
-                      color: comment.isPro ? Colors.blue : Colors.red,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      comment.isPro ? '찬성' : '반대',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: comment.isPro ? Colors.blue : Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  comment.isPro ? '찬성' : '반대',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: comment.isPro ? Colors.blue : Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Text(
                 comment.nickname,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const Spacer(),
               Text(
@@ -1249,11 +846,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           const SizedBox(height: 8),
           Text(
             comment.content,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textPrimary,
-              height: 1.4,
-            ),
+            style: const TextStyle(fontSize: 14, height: 1.4),
           ),
         ],
       ),
@@ -1283,14 +876,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         createdAt: DateTime.now(),
       );
 
-      // Firestore에 저장
       await newsCommentProvider.addComment(widget.news.url, newComment);
-
-      setState(() {
-        _commentController.clear();
-      });
-
-      // 댓글 새로고침
+      setState(() => _commentController.clear());
       await _loadComments();
 
       if (mounted) {
@@ -1315,23 +902,14 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
     }
   }
 
-  Future<void> _launchUrl(String url) async {
-    print('Opening URL: $url');
-  }
-
   String _formatDateTime(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
 
-    if (difference.inDays > 0) {
-      return '${difference.inDays}일 전';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}시간 전';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}분 전';
-    } else {
-      return '방금 전';
-    }
+    if (difference.inMinutes < 1) return '방금 전';
+    if (difference.inMinutes < 60) return '${difference.inMinutes}분 전';
+    if (difference.inHours < 24) return '${difference.inHours}시간 전';
+    return '${dateTime.month}/${dateTime.day}';
   }
 
   @override
@@ -1341,10 +919,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
     super.dispose();
   }
 }
-
-// ========================================
-// 뉴스 댓글 모델
-// ========================================
 
 class NewsComment {
   final int id;
@@ -1364,24 +938,4 @@ class NewsComment {
   });
 
   bool get isPro => stance == 'pro';
-
-  factory NewsComment.fromJson(Map<String, dynamic> json) {
-    return NewsComment(
-      id: json['id'],
-      newsUrl: json['news_url'],
-      nickname: json['nickname'],
-      stance: json['stance'],
-      content: json['content'],
-      createdAt: DateTime.parse(json['created_at']),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'news_url': newsUrl,
-      'nickname': nickname,
-      'stance': stance,
-      'content': content,
-    };
-  }
 }
