@@ -10,6 +10,19 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Firebase
+  firebase_core: ^2.24.2
+  cloud_firestore: ^4.13.6
+
+  # 보안 저장소
+  flutter_secure_storage: ^9.0.0
+
+  # 디바이스 정보
+  device_info_plus: ^9.1.1
+
+  # 암호화
+  crypto: ^3.0.3
+
   # HTTP 통신
   http: ^1.1.0
   dio: ^5.3.2
@@ -44,13 +57,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  # assets:
-  #   - assets/images/
-
-  # fonts:
-  #   - family: Pretendard
-  #     fonts:
-  #       - asset: assets/fonts/Pretendard-Regular.ttf
-  #       - asset: assets/fonts/Pretendard-Bold.ttf
-  #         weight: 700

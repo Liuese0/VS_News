@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 헬퍼 함수: 요청에 유효한 UID가 있는지 확인
+    function isValidRequest() {
+      return request.resource.data.uid is string 
+        && request.resource.data.uid.size() == 32;
+    }
+    
+    // 유저 문서 - 본인만 읽기 가능, 쓰기는 Functions 통해서만
+    match /users/{uid} {
+      allow read: if request.auth == null || resource.data.deviceHash != null;
+      allow write: if false; // Cloud Functions에서만 쓰기 가능
+      
+      // 참여한 토론 서브컬렉션
+      match /participatedDiscussions/{discussionId} {
+        allow read: if true;
+        allow write: if false; // Cloud Functions에서만
+      }
+      
+      // 토큰 히스토리
+      match /tokenHistory/{historyId} {
+        allow read: if true;
+        allow write: if false; // Cloud Functions에서만
+      }
+    }
+    
+    // 캐시 문서 - 모든 사용자 읽기 가능
+    match /cache/{docId} {
+      allow read: if true;
+      allow write: if false; // Cloud Functions에서만
+    }
+    
+    // 토론 문서
+    match /discussions/{discussionId} {
+      allow read: if true;
+      allow create: if request.resource.data.uid is string;
+      allow update: if false; // Cloud Functions에서만
+      allow delete: if false;
+    }
+    
+    // 댓글 문서
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if request.resource.data.uid is string
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.content.size() <= 1000;
+      allow update, delete: if false;
+    }
+    
+    // 즐겨찾기 - 복합키 사용 (uid_newsId)
+    match /favorites/{favoriteId} {
+      allow read: if true;
+      allow write: if false; // Cloud Functions에서만
+    }
+    
+    // 뉴스 문서 (자동 수집된 뉴스)
+    match /news/{newsId} {
+      allow read: if true;
+      allow write: if false; // 서버에서만
+    }
+    
+    // 이슈 문서
+    match /issues/{issueId} {
+      allow read: if true;
+      allow write: if false; // 서버에서만
+    }
+  }
+}

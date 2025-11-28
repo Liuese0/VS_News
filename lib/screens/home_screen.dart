@@ -1,16 +1,12 @@
 // lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/models.dart';
-import '../providers/issue_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/auth_provider.dart';
 import '../providers/news_comment_provider.dart';
-import '../widgets/issue_card.dart';
-import '../widgets/custom_app_bar.dart';
-import '../screens/issue_detail_screen.dart';
 import '../screens/news_explorer_screen.dart';
 import '../utils/constants.dart';
-import '../services/news_auto_service.dart';
+import '../services/firestore_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,7 +19,7 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ScrollController _scrollController = ScrollController();
-  final NewsAutoService _newsService = NewsAutoService();
+  final FirestoreService _firestoreService = FirestoreService();
 
   List<NewsDiscussionItem> _popularDiscussions = [];
   List<NewsDiscussionItem> _participatedDiscussions = [];
@@ -45,15 +41,42 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final newsCommentProvider = context.read<NewsCommentProvider>();
 
-      // 인기 토론 (참여 인원수 상위 10개)
-      final popularUrls = newsCommentProvider.getPopularNewsUrls();
-      _popularDiscussions = await _loadDiscussionsFromUrls(popularUrls);
+      // 참여한 토론 로드
+      await newsCommentProvider.loadParticipatedDiscussions();
 
-      // 참여한 토론 (최신 10개)
-      final participatedUrls = newsCommentProvider.participatedNewsUrls.take(10).toList();
-      _participatedDiscussions = await _loadDiscussionsFromUrls(participatedUrls);
+      // 인기 토론 (캐시에서 가져오기)
+      final popularCache = await _firestoreService.getPopularDiscussions();
+      _popularDiscussions = popularCache.map((data) {
+        final lastCommentTime = data['lastCommentTime'];
+        return NewsDiscussionItem(
+          newsUrl: data['newsUrl'] ?? '',
+          title: data['title'] ?? '제목 없음',
+          participantCount: data['participantCount'] ?? 0,
+          commentCount: data['commentCount'] ?? 0,
+          lastCommentTime: lastCommentTime is Timestamp
+              ? lastCommentTime.toDate()
+              : DateTime.now(),
+        );
+      }).toList();
 
-      // 즐겨찾기 토론 (로컬 저장소에서 불러오기 - 추후 구현)
+      // 참여한 토론
+      final participatedUrls = newsCommentProvider.participatedNewsUrls;
+      _participatedDiscussions = [];
+
+      for (String url in participatedUrls.take(10)) {
+        final commentCount = await _firestoreService.getCommentCount(url);
+        final participantCount = await _firestoreService.getParticipantCount(url);
+
+        _participatedDiscussions.add(NewsDiscussionItem(
+          newsUrl: url,
+          title: _extractTitleFromUrl(url),
+          participantCount: participantCount,
+          commentCount: commentCount,
+          lastCommentTime: DateTime.now(),
+        ));
+      }
+
+      // 즐겨찾기 토론 (추후 구현)
       _favoriteDiscussions = [];
 
     } catch (e) {
@@ -63,42 +86,22 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<List<NewsDiscussionItem>> _loadDiscussionsFromUrls(List<String> urls) async {
-    List<NewsDiscussionItem> discussions = [];
-    final newsCommentProvider = context.read<NewsCommentProvider>();
-
-    // 실제 앱에서는 뉴스 데이터를 캐싱하거나 API에서 가져와야 함
-    // 여기서는 URL만으로 기본 정보 생성
-    for (String url in urls) {
-      final comments = newsCommentProvider.getComments(url);
-      final participantCount = newsCommentProvider.getParticipantCount(url);
-
-      if (comments.isNotEmpty) {
-        // 첫 번째 댓글에서 뉴스 정보 추출 (임시)
-        discussions.add(NewsDiscussionItem(
-          newsUrl: url,
-          title: _extractTitleFromUrl(url),
-          participantCount: participantCount,
-          commentCount: comments.length,
-          lastCommentTime: comments.first.createdAt,
-        ));
-      }
-    }
-
-    return discussions;
-  }
-
   String _extractTitleFromUrl(String url) {
-    // URL에서 제목 추출 (임시 방법)
-    // 실제로는 뉴스 데이터를 저장하고 불러와야 함
-    return url.split('/').last.replaceAll('-', ' ').replaceAll('.html', '');
+    try {
+      return url.split('/').last
+          .replaceAll('-', ' ')
+          .replaceAll('.html', '')
+          .replaceAll('%20', ' ');
+    } catch (e) {
+      return '뉴스 토론';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(
-        title: AppStrings.appName,
+      appBar: AppBar(
+        title: const Text(AppStrings.appName),
         actions: [
           IconButton(
             icon: const Icon(Icons.explore),
@@ -110,7 +113,6 @@ class _HomeScreenState extends State<HomeScreen>
                   builder: (context) => const ImprovedNewsExplorerScreen(),
                 ),
               );
-              // 뉴스 탐색에서 돌아온 후 데이터 새로고침
               _loadAllData();
             },
           ),
@@ -123,18 +125,9 @@ class _HomeScreenState extends State<HomeScreen>
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(
-              icon: Icon(Icons.whatshot),
-              text: '인기 토론',
-            ),
-            Tab(
-              icon: Icon(Icons.history),
-              text: '참여한 토론',
-            ),
-            Tab(
-              icon: Icon(Icons.favorite),
-              text: '즐겨찾기',
-            ),
+            Tab(icon: Icon(Icons.whatshot), text: '인기 토론'),
+            Tab(icon: Icon(Icons.history), text: '참여한 토론'),
+            Tab(icon: Icon(Icons.favorite), text: '즐겨찾기'),
           ],
           labelColor: AppColors.primaryColor,
           unselectedLabelColor: AppColors.textSecondary,
@@ -338,7 +331,6 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         child: Row(
           children: [
-            // 순위 표시
             Container(
               width: 40,
               height: 40,
@@ -358,7 +350,6 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             const SizedBox(width: 12),
-            // 토론 내용
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,7 +367,7 @@ class _HomeScreenState extends State<HomeScreen>
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.people,
                         size: 16,
                         color: AppColors.primaryColor,
@@ -391,7 +382,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Icon(
+                      const Icon(
                         Icons.comment,
                         size: 16,
                         color: AppColors.textSecondary,
@@ -409,7 +400,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ],
               ),
             ),
-            Icon(
+            const Icon(
               Icons.arrow_forward_ios,
               size: 16,
               color: AppColors.textSecondary,
@@ -454,7 +445,7 @@ class _HomeScreenState extends State<HomeScreen>
                     color: AppColors.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
@@ -462,7 +453,7 @@ class _HomeScreenState extends State<HomeScreen>
                         size: 16,
                         color: AppColors.primaryColor,
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         '참여함',
                         style: TextStyle(
@@ -498,7 +489,7 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 8),
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.people,
                   size: 14,
                   color: AppColors.textSecondary,
@@ -512,7 +503,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
                 const SizedBox(width: 12),
-                Icon(
+                const Icon(
                   Icons.comment,
                   size: 14,
                   color: AppColors.textSecondary,
@@ -583,7 +574,7 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.people,
                   size: 14,
                   color: AppColors.textSecondary,
@@ -597,7 +588,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
                 const SizedBox(width: 12),
-                Icon(
+                const Icon(
                   Icons.comment,
                   size: 14,
                   color: AppColors.textSecondary,

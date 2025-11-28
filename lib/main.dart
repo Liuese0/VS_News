@@ -1,14 +1,19 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'providers/issue_provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'providers/auth_provider.dart';
 import 'providers/news_comment_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
 import 'utils/constants.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase 초기화
+  await Firebase.initializeApp();
+
   runApp(const NewsDebaterApp());
 }
 
@@ -20,7 +25,6 @@ class NewsDebaterApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => IssueProvider()),
         ChangeNotifierProvider(create: (_) => NewsCommentProvider()),
       ],
       child: MaterialApp(

@@ -1,0 +1,60 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "discussions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participantCount", "order": "DESCENDING" },
+        { "fieldPath": "lastActivityAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "discussions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "participantCount", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "discussionId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "discussionId", "order": "ASCENDING" },
+        { "fieldPath": "stance", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "participatedDiscussions",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "lastCommentAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "favorites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tokenHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

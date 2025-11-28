@@ -1,9 +1,10 @@
-// lib/screens/improved_news_explorer_screen.dart
+// lib/screens/news_explorer_screen.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/models.dart';
 import '../services/news_auto_service.dart';
+import '../services/firestore_service.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/category_chip.dart';
 import '../widgets/tag_chip.dart';
@@ -22,6 +23,7 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final NewsAutoService _newsService = NewsAutoService();
+  final FirestoreService _firestoreService = FirestoreService();
 
   String _selectedCategory = '인기';
   String? _selectedTag;
@@ -41,15 +43,14 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
   }
 
   Future<void> _loadFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _favoriteNewsIds = (prefs.getStringList('favorite_news') ?? []).toSet();
-    });
-  }
-
-  Future<void> _saveFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorite_news', _favoriteNewsIds.toList());
+    try {
+      final favorites = await _firestoreService.getUserFavorites();
+      setState(() {
+        _favoriteNewsIds = favorites.toSet();
+      });
+    } catch (e) {
+      print('즐겨찾기 로드 실패: $e');
+    }
   }
 
   Future<void> _loadNews() async {
@@ -439,7 +440,7 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
 
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.source,
                         size: 14,
                         color: AppColors.textSecondary,
@@ -455,7 +456,7 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
                       ),
                       const Spacer(),
                       if (participantCount > 0) ...[
-                        Icon(
+                        const Icon(
                           Icons.people,
                           size: 14,
                           color: AppColors.primaryColor,
@@ -471,7 +472,7 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
                         ),
                         const SizedBox(width: 8),
                       ],
-                      Icon(
+                      const Icon(
                         Icons.comment_outlined,
                         size: 14,
                         color: AppColors.textSecondary,
@@ -485,7 +486,7 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(
+                      const Icon(
                         Icons.arrow_forward_ios,
                         size: 12,
                         color: AppColors.textSecondary,
@@ -664,10 +665,11 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
     return category?.tags ?? [];
   }
 
-  void _toggleFavorite(String newsId) {
-    setState(() {
-      if (_favoriteNewsIds.contains(newsId)) {
-        _favoriteNewsIds.remove(newsId);
+  Future<void> _toggleFavorite(String newsUrl) async {
+    try {
+      if (_favoriteNewsIds.contains(newsUrl)) {
+        await _firestoreService.removeFavorite(newsUrl);
+        setState(() => _favoriteNewsIds.remove(newsUrl));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('즐겨찾기에서 제거되었습니다'),
@@ -684,7 +686,8 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
           );
           return;
         }
-        _favoriteNewsIds.add(newsId);
+        await _firestoreService.addFavorite(newsUrl);
+        setState(() => _favoriteNewsIds.add(newsUrl));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('즐겨찾기에 추가되었습니다'),
@@ -693,8 +696,14 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
           ),
         );
       }
-    });
-    _saveFavorites();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('오류 발생: $e'),
+          backgroundColor: AppColors.errorColor,
+        ),
+      );
+    }
   }
 
   void _showNewsDetailWithDiscussion(AutoCollectedNews news) {
@@ -805,7 +814,10 @@ class _ImprovedNewsExplorerScreenState extends State<ImprovedNewsExplorerScreen>
   }
 }
 
+// ========================================
 // 뉴스 상세보기 + 토론 위젯
+// ========================================
+
 class NewsDetailWithDiscussion extends StatefulWidget {
   final AutoCollectedNews news;
 
@@ -832,11 +844,11 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   Future<void> _loadComments() async {
     final newsCommentProvider = context.read<NewsCommentProvider>();
 
-    // Provider에서 기존 댓글 가져오기
-    final existingComments = newsCommentProvider.getComments(widget.news.url);
+    // Firestore에서 댓글 로드
+    await newsCommentProvider.loadComments(widget.news.url);
 
     setState(() {
-      _comments = List.from(existingComments);
+      _comments = newsCommentProvider.getComments(widget.news.url);
     });
   }
 
@@ -1016,7 +1028,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               ),
               const Spacer(),
               if (participantCount > 0) ...[
-                Icon(
+                const Icon(
                   Icons.people,
                   size: 16,
                   color: AppColors.primaryColor,
@@ -1271,13 +1283,15 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         createdAt: DateTime.now(),
       );
 
-      // Provider에 댓글 추가
-      newsCommentProvider.addComment(widget.news.url, newComment);
+      // Firestore에 저장
+      await newsCommentProvider.addComment(widget.news.url, newComment);
 
       setState(() {
-        _comments.insert(0, newComment);
         _commentController.clear();
       });
+
+      // 댓글 새로고침
+      await _loadComments();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1328,7 +1342,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 }
 
+// ========================================
 // 뉴스 댓글 모델
+// ========================================
+
 class NewsComment {
   final int id;
   final String newsUrl;
