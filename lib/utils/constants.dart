@@ -4,28 +4,28 @@ import 'dart:io';
 
 class AppColors {
   // 회색 & 화이트 색상 체계 (업로드된 이미지 기반)
-  static const Color primaryColor = Color(0xFF4B5563); // 진한 회색 (선택된 상태)
-  static const Color primaryDark = Color(0xFF374151); // 더 진한 회색
-  static const Color primaryLight = Color(0xFF6B7280); // 밝은 회색
-  static const Color primaryLighter = Color(0xFF9CA3AF); // 더 밝은 회색
+  static const Color primaryColor = Color(0xD64B5563); // 진한 회색 (선택된 상태)
+  static const Color primaryDark = Color(0xD6374151); // 더 진한 회색
+  static const Color primaryLight = Color(0xD66B7280); // 밝은 회색
+  static const Color primaryLighter = Color(0xD69CA3AF); // 더 밝은 회색
 
-  static const Color secondaryColor = Color(0xFF6B7280);
-  static const Color backgroundColor = Color(0xFFF9FAFB); // 연한 회색 배경
-  static const Color headerBackground = Color(0xFFE5E7EB); // 헤더 배경 (연한 회색)
-  static const Color errorColor = Color(0xFFB00020);
-  static const Color successColor = Color(0xFF4B5563);
-  static const Color warningColor = Color(0xFFFF9800);
+  static const Color secondaryColor = Color(0xD66B7280);
+  static const Color backgroundColor = Color(0xD6F9FAFB); // 연한 회색 배경
+  static const Color headerBackground = Color(0xD6E5E7EB); // 헤더 배경 (연한 회색)
+  static const Color errorColor = Color(0xD6B00020);
+  static const Color successColor = Color(0xD64B5563);
+  static const Color warningColor = Color(0xD6FF9800);
   static const Color cardColor = Colors.white;
-  static const Color textPrimary = Color(0xFF1F2937); // 거의 검정
-  static const Color textSecondary = Color(0xFF6B7280); // 회색
+  static const Color textPrimary = Color(0xD61F2937); // 거의 검정
+  static const Color textSecondary = Color(0xD66B7280); // 회색
 
   // 그라데이션 (회색 계열)
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF4B5563),
-      Color(0xFF374151),
+      Color(0xD64B5563),
+      Color(0xD6374151),
     ],
   );
 
@@ -33,8 +33,8 @@ class AppColors {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      Color(0xFF4B5563),
-      Color(0xFF374151),
+      Color(0xD64B5563),
+      Color(0xD6374151),
     ],
   );
 
@@ -42,8 +42,8 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF6B7280),
-      Color(0xFF4B5563),
+      Color(0xD66B7280),
+      Color(0xD64B5563),
     ],
   );
 
@@ -51,9 +51,9 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF9CA3AF),
-      Color(0xFF6B7280),
-      Color(0xFF4B5563),
+      Color(0xD69CA3AF),
+      Color(0xD66B7280),
+      Color(0xD64B5563),
     ],
   );
 
@@ -64,15 +64,15 @@ class AppColors {
 
   // 뉴스 카테고리 색상 (회색 계열로 통일)
   static const Map<String, Color> categoryColors = {
-    '인기': Color(0xFFEF4444),
-    '정치': Color(0xFF4B5563),
-    '경제': Color(0xFF6B7280),
-    '산업': Color(0xFF374151),
-    '사회': Color(0xFF4B5563),
-    '문화': Color(0xFF6B7280),
-    '과학': Color(0xFF374151),
-    '스포츠': Color(0xFF4B5563),
-    '연예': Color(0xFF6B7280),
+    '인기': Color(0xD6EF4444),
+    '정치': Color(0xD64B5563),
+    '경제': Color(0xD66B7280),
+    '산업': Color(0xD6374151),
+    '사회': Color(0xD64B5563),
+    '문화': Color(0xD66B7280),
+    '과학': Color(0xD6374151),
+    '스포츠': Color(0xD64B5563),
+    '연예': Color(0xD66B7280),
   };
 }
 
