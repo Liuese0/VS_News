@@ -1,5 +1,6 @@
 // lib/screens/news_explorer_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/models.dart';
@@ -28,14 +29,14 @@ class _ExploreScreenState extends State<ExploreScreen>
   bool _isLoading = false;
   Set<String> _favoriteNewsIds = <String>{};
 
-  // 카테고리 목록
+  // 카테고리 목록 (이미지와 동일)
   final List<Map<String, dynamic>> _categories = [
     {'name': '전체', 'icon': '📰'},
     {'name': '정치', 'icon': '🏛️'},
     {'name': '경제', 'icon': '💰'},
     {'name': '사회', 'icon': '👥'},
-    {'name': '문화', 'icon': '🎭'},
     {'name': '과학기술', 'icon': '🔬'},
+    {'name': '문화', 'icon': '🎭'},
   ];
 
   @override
@@ -90,144 +91,145 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          '뉴스 디베이터',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_outline, color: AppColors.primaryColor),
-            onPressed: () {},
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(140),
-          child: Column(
-            children: [
-              // 검색 바
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: AppColors.headerBackground, // 상단바 배경색
+        statusBarIconBrightness: Brightness.dark, // 아이콘 어둡게
+      ),
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundColor,
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(200),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.headerBackground,
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // 상단 타이틀 바
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.article,
+                            color: AppColors.primaryColor,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '뉴스 디베이터',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.person_outline, color: AppColors.primaryColor),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: '관심 있는 글 검색',
-                      hintStyle: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 14,
+
+                  // 검색 바
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade300),
                       ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: AppColors.primaryColor,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: '관심 있는 글 검색',
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade400,
+                            fontSize: 14,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Colors.grey.shade600,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
 
-              // 탭 버튼
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    _buildTabFilterButton('실시간 뉴스', true),
-                    const SizedBox(width: 8),
-                    _buildTabFilterButton('논쟁 이슈', false),
-                  ],
-                ),
-              ),
-
-              // 카테고리 필터
-              SizedBox(
-                height: 40,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _categories.length,
-                  itemBuilder: (context, index) {
-                    final category = _categories[index];
-                    final isSelected = _selectedCategory == category['name'];
-
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        selected: isSelected,
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(category['icon']),
-                            const SizedBox(width: 4),
-                            Text(
-                              category['name'],
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppColors.textPrimary,
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                            ),
-                          ],
+                  // 탭 버튼 (실시간 뉴스 / 논쟁 이슈)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildTabButton('실시간 뉴스', true),
                         ),
-                        backgroundColor: Colors.white,
-                        selectedColor: AppColors.primaryColor,
-                        side: BorderSide(
-                          color: isSelected
-                              ? AppColors.primaryColor
-                              : Colors.grey.shade300,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildTabButton('논쟁 이슈', false),
                         ),
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedCategory = category['name'];
-                          });
-                          _loadNews();
-                        },
-                      ),
-                    );
-                  },
-                ),
+                      ],
+                    ),
+                  ),
+
+                  // 카테고리 필터
+                  SizedBox(
+                    height: 42,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _categories.length,
+                      itemBuilder: (context, index) {
+                        final category = _categories[index];
+                        final isSelected = _selectedCategory == category['name'];
+
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _buildCategoryChip(
+                            category['name'],
+                            isSelected,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
               ),
-            ],
+            ),
           ),
         ),
+        body: _isLoading
+            ? const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
+          ),
+        )
+            : _buildNewsList(),
       ),
-      body: _isLoading
-          ? const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
-        ),
-      )
-          : _buildNewsList(),
     );
   }
 
-  Widget _buildTabFilterButton(String label, bool isSelected) {
-    return Expanded(
+  Widget _buildTabButton(String label, bool isSelected) {
+    return GestureDetector(
+      onTap: () {},
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
@@ -241,9 +243,38 @@ class _ExploreScreenState extends State<ExploreScreen>
           label,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             color: isSelected ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(String categoryName, bool isSelected) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedCategory = categoryName;
+        });
+        _loadNews();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryColor : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryColor : Colors.grey.shade300,
+          ),
+        ),
+        child: Text(
+          categoryName,
+          style: TextStyle(
+            fontSize: 13,
+            color: isSelected ? Colors.white : AppColors.textPrimary,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
       ),
@@ -272,6 +303,9 @@ class _ExploreScreenState extends State<ExploreScreen>
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _loadNews,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryColor,
+              ),
               child: const Text('새로고침'),
             ),
           ],
@@ -283,7 +317,7 @@ class _ExploreScreenState extends State<ExploreScreen>
       onRefresh: _loadNews,
       color: AppColors.primaryColor,
       child: Container(
-        color: Colors.grey.shade50,
+        color: AppColors.backgroundColor,
         child: ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: _newsList.length,
@@ -311,24 +345,18 @@ class _ExploreScreenState extends State<ExploreScreen>
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          boxShadow: AppShadows.small,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 상단 정보 (카테고리, 시간, 북마크)
+            // 상단 정보 (카테고리, 시간)
             Row(
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryColor.withOpacity(0.1),
+                    color: Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
@@ -340,30 +368,13 @@ class _ExploreScreenState extends State<ExploreScreen>
                         news.autoCategory,
                         style: const TextStyle(
                           fontSize: 11,
-                          color: AppColors.primaryColor,
-                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (news.autoTags.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      news.autoTags.first,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
                 const Spacer(),
                 Text(
                   _formatDateTime(news.publishedAt),
@@ -431,22 +442,22 @@ class _ExploreScreenState extends State<ExploreScreen>
             Row(
               children: [
                 Icon(
-                  isFavorite ? Icons.favorite : Icons.favorite_outline,
+                  isFavorite ? Icons.favorite : Icons.favorite_border,
                   size: 16,
-                  color: isFavorite ? AppColors.primaryColor : Colors.grey.shade400,
+                  color: isFavorite ? AppColors.errorColor : Colors.grey.shade400,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   participantCount.toString(),
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: isFavorite ? AppColors.primaryColor : Colors.grey.shade600,
+                    fontWeight: FontWeight.w600,
+                    color: isFavorite ? AppColors.errorColor : Colors.grey.shade600,
                   ),
                 ),
                 const SizedBox(width: 16),
                 Icon(
-                  Icons.comment,
+                  Icons.chat_bubble_outline,
                   size: 16,
                   color: Colors.grey.shade600,
                 ),
@@ -460,13 +471,13 @@ class _ExploreScreenState extends State<ExploreScreen>
                 ),
                 const SizedBox(width: 16),
                 Icon(
-                  Icons.visibility,
+                  Icons.visibility_outlined,
                   size: 16,
                   color: Colors.grey.shade600,
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '${participantCount * 10}',
+                  '${participantCount * 10}k',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey.shade600,
@@ -475,7 +486,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                 const Spacer(),
                 IconButton(
                   icon: Icon(
-                    isFavorite ? Icons.bookmark : Icons.bookmark_outline,
+                    isFavorite ? Icons.bookmark : Icons.bookmark_border,
                     size: 20,
                     color: isFavorite ? AppColors.primaryColor : Colors.grey.shade400,
                   ),

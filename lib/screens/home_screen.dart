@@ -1,5 +1,6 @@
 // lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/auth_provider.dart';
@@ -77,139 +78,120 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
 
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(context, authProvider),
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
-                ),
-              )
-                  : _buildContent(),
-            ),
-          ],
-        ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: AppColors.headerBackground,
+        statusBarIconBrightness: Brightness.dark,
       ),
-      bottomNavigationBar: _buildBottomNavigation(),
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundColor,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context, authProvider),
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.primaryColor,
+                    ),
+                  ),
+                )
+                    : _buildContent(),
+              ),
+            ],
+          ),
+        ),
+        bottomNavigationBar: _buildBottomNavigation(),
+      ),
     );
   }
 
+  /// 상단 헤더 + 프로필 카드
   Widget _buildHeader(BuildContext context, AuthProvider authProvider) {
     final userInfo = authProvider.userInfo ?? {};
-    final tokenCount = userInfo['tokenCount'] ?? 0;
-    final favoriteCount = userInfo['favoriteCount'] ?? 0;
-    final commentCount = userInfo['commentCount'] ?? 0;
+    final tokenCount = userInfo['tokenCount'] ?? 12;
+    final favoriteCount = userInfo['favoriteCount'] ?? 45;
+    final commentCount = userInfo['commentCount'] ?? 150;
 
     return Container(
       decoration: const BoxDecoration(
-        gradient: AppColors.primaryGradient,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x4010B981), // 에메랄드 25% 투명도
-            blurRadius: 20,
-            offset: Offset(0, 4),
-          ),
-        ],
+        color: AppColors.headerBackground,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
         child: Column(
           children: [
-            // 상단 바 (로고 + 프로필)
+            // 상단 바 (앱 타이틀 + 프로필 버튼)
             Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: AppShadows.small,
-                      ),
-                      child: const Icon(
-                        Icons.article,
-                        color: AppColors.primaryColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      '뉴스 디베이터',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        shadows: [
-                          Shadow(
-                            color: Color(0x40000000),
-                            offset: Offset(0, 2),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: AppShadows.small,
+                  ),
+                  child: const Icon(
+                    Icons.article_outlined,
+                    color: AppColors.primaryColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  '뉴스 디베이터',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const Spacer(),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: AppShadows.small,
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.person_outline, color: Colors.white),
+                    icon: const Icon(
+                      Icons.person_outline,
+                      color: AppColors.primaryColor,
+                    ),
                     onPressed: () => _showLogoutDialog(context, authProvider),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // 사용자 정보 카드 (그라데이션 + 그림자)
+            // 사용자 정보 카드
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white,
-                    Colors.white.withOpacity(0.95),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: AppShadows.large,
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: AppShadows.medium,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 프로필 영역
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // 그라데이션 아바타
                       Container(
-                        padding: const EdgeInsets.all(3),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          gradient: AppColors.shimmerGradient,
+                          color: Colors.grey.shade100,
                           shape: BoxShape.circle,
-                          boxShadow: AppShadows.small,
                         ),
-                        child: Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.person,
-                            color: AppColors.primaryColor,
-                            size: 28,
-                          ),
+                        child: const Icon(
+                          Icons.person,
+                          color: AppColors.primaryColor,
+                          size: 28,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -218,34 +200,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${authProvider.nickname} 디베이터',
+                              '${authProvider.nickname}의 디베이터',
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.textPrimary,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
-                                vertical: 2,
+                                vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColors.primaryLight.withOpacity(0.2),
-                                    AppColors.primaryColor.withOpacity(0.1),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(4),
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(6),
                               ),
                               child: const Text(
-                                '활동 디베이터',
+                                '활성 디베이터',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: AppColors.primaryDark,
-                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ),
@@ -254,38 +232,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                       Container(
                         decoration: BoxDecoration(
-                          gradient: AppColors.lightGradient,
+                          color: Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(8),
-                          boxShadow: AppShadows.small,
                         ),
                         child: IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          color: Colors.white,
-                          onPressed: () {
-                            _showEditNicknameDialog(context, authProvider);
-                          },
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            size: 18,
+                            color: AppColors.primaryColor,
+                          ),
+                          onPressed: () =>
+                              _showEditNicknameDialog(context, authProvider),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  // 통계 (그라데이션 카드)
+                  const SizedBox(height: 18),
+
+                  // 통계 카드 3개
                   Row(
                     children: [
                       _buildStatItem(
-                        icon: Icons.favorite,
-                        label: '좋아요',
+                        icon: Icons.favorite_outline,
+                        label: '즐겨찾기',
+                        value: tokenCount.toString(),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildStatItem(
+                        icon: Icons.chat_bubble_outline,
+                        label: '댓글',
                         value: favoriteCount.toString(),
                       ),
+                      const SizedBox(width: 8),
                       _buildStatItem(
-                        icon: Icons.comment,
-                        label: '의견',
-                        value: commentCount.toString(),
-                      ),
-                      _buildStatItem(
-                        icon: Icons.bookmark,
+                        icon: Icons.forum_outlined,
                         label: '토론',
-                        value: tokenCount.toString(),
+                        value: commentCount.toString(),
                       ),
                     ],
                   ),
@@ -298,6 +280,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// 사용자 통계 카드
   Widget _buildStatItem({
     required IconData icon,
     required String label,
@@ -305,55 +288,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) {
     return Expanded(
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryColor.withOpacity(0.1),
-              AppColors.primaryLight.withOpacity(0.05),
-            ],
-          ),
+          color: Colors.grey.shade50,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppColors.primaryColor.withOpacity(0.2),
-            width: 1.5,
+            color: Colors.grey.shade200,
           ),
         ),
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: AppColors.lightGradient,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primaryColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: AppColors.primaryColor, size: 18),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
                   ),
-                ],
-              ),
-              child: Icon(icon, color: Colors.white, size: 18),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               value,
               style: const TextStyle(
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: AppColors.primaryDark,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppColors.textSecondary,
+                color: AppColors.textPrimary,
               ),
             ),
           ],
@@ -362,62 +327,64 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// 본문(탭 + 리스트)
   Widget _buildContent() {
     return Column(
       children: [
-        // 탭 버튼들 (그라데이션)
+        // 탭 버튼 영역
         Container(
           color: Colors.white,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              _buildTabButton(0, '뉴스탐색', Icons.explore),
+              _buildTabButton(0, '뉴스탐색', Icons.explore_outlined),
               const SizedBox(width: 8),
-              _buildTabButton(1, '즐겨찾기', Icons.bookmark),
+              _buildTabButton(1, '즐겨찾기', Icons.bookmark_outline),
               const SizedBox(width: 8),
               _buildTabButton(2, '새로고침', Icons.refresh),
             ],
           ),
         ),
 
-        // 최근 참여한 토론 섹션
+        // 최근 참여한 토론
         Expanded(
           child: Container(
-            color: Colors.grey.shade50,
+            color: AppColors.backgroundColor,
             child: ListView(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               children: [
                 Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        gradient: AppColors.lightGradient,
+                        color: Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(8),
-                        boxShadow: AppShadows.small,
                       ),
                       child: const Icon(
-                        Icons.chat_bubble,
-                        size: 18,
-                        color: Colors.white,
+                        Icons.chat_bubble_outline,
+                        size: 16,
+                        color: AppColors.primaryColor,
                       ),
                     ),
                     const SizedBox(width: 8),
                     const Text(
                       '최근 참여한 토론',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 if (_recentNews.isEmpty)
                   _buildEmptyState()
                 else
-                  ..._recentNews.map((news) => _buildNewsDiscussionCard(news)),
+                  ..._recentNews.map(_buildNewsDiscussionCard),
               ],
             ),
           ),
@@ -426,6 +393,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// 상단 탭 버튼 (뉴스탐색 / 즐겨찾기 / 새로고침)
   Widget _buildTabButton(int index, String label, IconData icon) {
     final isSelected = _selectedTabIndex == index;
 
@@ -445,33 +413,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           }
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            gradient: isSelected ? AppColors.primaryGradient : null,
-            color: isSelected ? null : Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            color: isSelected ? AppColors.primaryColor : Colors.white,
+            borderRadius: BorderRadius.circular(999),
             border: Border.all(
-              color: isSelected
-                  ? Colors.transparent
-                  : Colors.grey.shade300,
+              color:
+              isSelected ? AppColors.primaryColor : Colors.grey.shade300,
             ),
-            boxShadow: isSelected ? AppShadows.medium : AppShadows.small,
+            boxShadow: isSelected ? AppShadows.small : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
-                size: 18,
+                size: 16,
                 color: isSelected ? Colors.white : AppColors.textSecondary,
               ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 12,
+                  fontWeight:
+                  isSelected ? FontWeight.bold : FontWeight.normal,
                   color: isSelected ? Colors.white : AppColors.textSecondary,
                 ),
               ),
@@ -482,6 +449,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// 토론 카드
   Widget _buildNewsDiscussionCard(NewsDiscussionItem discussion) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -489,43 +457,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.primaryColor.withOpacity(0.1),
-          width: 1.5,
-        ),
-        boxShadow: AppShadows.medium,
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: AppShadows.small,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 카테고리 + 시간
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  gradient: AppColors.lightGradient,
-                  borderRadius: BorderRadius.circular(6),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primaryColor.withOpacity(0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(999),
                 ),
                 child: const Row(
                   children: [
                     Text(
-                      '🔥',
-                      style: TextStyle(fontSize: 12),
+                      '경제',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                     SizedBox(width: 4),
                     Text(
-                      '정책',
+                      '정책/법률',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -541,7 +504,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+
+          // 제목
           Text(
             discussion.title,
             style: const TextStyle(
@@ -554,31 +519,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 12),
+
+          // 통계 + 북마크
           Row(
             children: [
               _buildStatBadge(
-                Icons.favorite,
+                Icons.favorite_outline,
                 '${discussion.participantCount}',
-                AppColors.primaryColor,
+                AppColors.errorColor,
               ),
               const SizedBox(width: 12),
               _buildStatBadge(
-                Icons.comment,
+                Icons.chat_bubble_outline,
                 '${discussion.commentCount}',
                 Colors.grey.shade600,
               ),
               const SizedBox(width: 12),
               _buildStatBadge(
-                Icons.visibility,
-                '${discussion.participantCount * 10}',
+                Icons.visibility_outlined,
+                '${discussion.participantCount * 10}k',
                 Colors.grey.shade600,
               ),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.bookmark_outline,
@@ -602,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           value,
           style: TextStyle(
             fontSize: 12,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
             color: color,
           ),
         ),
@@ -610,91 +577,82 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// 비어 있을 때 상태
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.primaryLight.withOpacity(0.2),
-                    AppColors.primaryColor.withOpacity(0.1),
-                  ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.forum_outlined,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '아직 참여한 토론이 없습니다',
+            style: TextStyle(
+              fontSize: 15,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ExploreScreen(),
                 ),
-                shape: BoxShape.circle,
+              );
+            },
+            icon: const Icon(Icons.explore_outlined),
+            label: const Text('뉴스 탐색하기'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 12,
               ),
-              child: Icon(
-                Icons.forum_outlined,
-                size: 64,
-                color: AppColors.primaryColor.withOpacity(0.5),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '아직 참여한 토론이 없습니다',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
               ),
             ),
-            const SizedBox(height: 24),
-            Container(
-              decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: AppShadows.medium,
-              ),
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ExploreScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.explore),
-                label: const Text('뉴스 탐색하기'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
+  /// 하단 네비게이션 바
   Widget _buildBottomNavigation() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryColor.withOpacity(0.08),
-            blurRadius: 12,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
             offset: const Offset(0, -2),
           ),
         ],
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding:
+          const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildBottomNavItem(
-                icon: Icons.home,
+                icon: Icons.home_outlined,
                 label: '홈',
                 isSelected: true,
               ),
@@ -711,7 +669,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 },
               ),
               _buildBottomNavItem(
-                icon: Icons.bookmark,
+                icon: Icons.bookmark_outline,
                 label: '즐겨찾기',
               ),
             ],
@@ -729,12 +687,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding:
+        const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
-          gradient: isSelected ? AppColors.lightGradient : null,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isSelected ? AppShadows.small : null,
+          color: isSelected ? AppColors.primaryColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -742,7 +701,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Icon(
               icon,
               color: isSelected ? Colors.white : Colors.grey.shade600,
-              size: 24,
+              size: 22,
             ),
             const SizedBox(height: 4),
             Text(
@@ -750,7 +709,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               style: TextStyle(
                 fontSize: 11,
                 color: isSelected ? Colors.white : Colors.grey.shade600,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight:
+                isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
           ],
@@ -759,67 +719,69 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// 로그아웃 다이얼로그
   void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape:
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('로그아웃'),
-        content: const Text('정말 로그아웃하시겠습니까?\n앱을 삭제하면 계정 정보가 사라지니 주의하세요.'),
+        content: const Text(
+          '정말 로그아웃하시겠습니까?\n앱을 삭제하면 계정 정보가 사라지니 주의하세요.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('취소'),
           ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: ElevatedButton(
-              onPressed: () async {
-                try {
-                  await authProvider.logout();
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await authProvider.logout();
 
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                          (route) => false,
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('로그아웃 실패: $e'),
-                        backgroundColor: AppColors.errorColor,
-                      ),
-                    );
-                  }
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const WelcomeScreen(),
+                    ),
+                        (route) => false,
+                  );
                 }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-              ),
-              child: const Text('로그아웃'),
+              } catch (e) {
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('로그아웃 실패: $e'),
+                      backgroundColor: AppColors.errorColor,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
             ),
+            child: const Text('로그아웃'),
           ),
         ],
       ),
     );
   }
 
-  void _showEditNicknameDialog(BuildContext context, AuthProvider authProvider) {
+  /// 닉네임 변경 다이얼로그
+  void _showEditNicknameDialog(
+      BuildContext context, AuthProvider authProvider) {
     final controller = TextEditingController(text: authProvider.nickname);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape:
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('닉네임 변경'),
         content: TextField(
           controller: controller,
@@ -830,7 +792,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primaryColor, width: 2),
+              borderSide: const BorderSide(
+                color: AppColors.primaryColor,
+                width: 2,
+              ),
             ),
           ),
           maxLength: 10,
@@ -840,41 +805,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             onPressed: () => Navigator.pop(context),
             child: const Text('취소'),
           ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: AppShadows.small,
-            ),
-            child: ElevatedButton(
-              onPressed: () async {
-                final newNickname = controller.text.trim();
-                if (newNickname.isNotEmpty) {
-                  try {
-                    await authProvider.updateNickname(newNickname);
+          ElevatedButton(
+            onPressed: () async {
+              final newNickname = controller.text.trim();
+              if (newNickname.isNotEmpty) {
+                try {
+                  await authProvider.updateNickname(newNickname);
+                  if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('닉네임이 변경되었습니다')),
+                      const SnackBar(
+                        content: Text('닉네임이 변경되었습니다'),
+                      ),
                     );
-                  } catch (e) {
+                  }
+                } catch (e) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('오류: $e')),
                     );
                   }
                 }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-              ),
-              child: const Text('저장'),
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryColor,
             ),
+            child: const Text('저장'),
           ),
         ],
       ),
     );
   }
 
+  /// 시간 포맷
   String _formatDateTime(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);

@@ -3,28 +3,29 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 
 class AppColors {
-  // 에메랄드 그린 색상 체계
-  static const Color primaryColor = Color(0xFF10B981); // 에메랄드 그린
-  static const Color primaryDark = Color(0xFF059669); // 진한 에메랄드
-  static const Color primaryLight = Color(0xFF34D399); // 밝은 에메랄드
-  static const Color primaryLighter = Color(0xFF6EE7B7); // 더 밝은 에메랄드
+  // 회색 & 화이트 색상 체계 (업로드된 이미지 기반)
+  static const Color primaryColor = Color(0xFF4B5563); // 진한 회색 (선택된 상태)
+  static const Color primaryDark = Color(0xFF374151); // 더 진한 회색
+  static const Color primaryLight = Color(0xFF6B7280); // 밝은 회색
+  static const Color primaryLighter = Color(0xFF9CA3AF); // 더 밝은 회색
 
-  static const Color secondaryColor = Color(0xFF03DAC6);
-  static const Color backgroundColor = Colors.white; // 흰색 배경
+  static const Color secondaryColor = Color(0xFF6B7280);
+  static const Color backgroundColor = Color(0xFFF9FAFB); // 연한 회색 배경
+  static const Color headerBackground = Color(0xFFE5E7EB); // 헤더 배경 (연한 회색)
   static const Color errorColor = Color(0xFFB00020);
-  static const Color successColor = Color(0xFF10B981); // 에메랄드와 동일
+  static const Color successColor = Color(0xFF4B5563);
   static const Color warningColor = Color(0xFFFF9800);
   static const Color cardColor = Colors.white;
-  static const Color textPrimary = Color(0xFF212121);
-  static const Color textSecondary = Color(0xFF757575);
+  static const Color textPrimary = Color(0xFF1F2937); // 거의 검정
+  static const Color textSecondary = Color(0xFF6B7280); // 회색
 
-  // 그라데이션
+  // 그라데이션 (회색 계열)
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF10B981), // 에메랄드
-      Color(0xFF059669), // 진한 에메랄드
+      Color(0xFF4B5563),
+      Color(0xFF374151),
     ],
   );
 
@@ -32,8 +33,8 @@ class AppColors {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: [
-      Color(0xFF10B981), // 에메랄드
-      Color(0xFF059669), // 진한 에메랄드
+      Color(0xFF4B5563),
+      Color(0xFF374151),
     ],
   );
 
@@ -41,8 +42,8 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF34D399), // 밝은 에메랄드
-      Color(0xFF10B981), // 에메랄드
+      Color(0xFF6B7280),
+      Color(0xFF4B5563),
     ],
   );
 
@@ -50,28 +51,28 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [
-      Color(0xFF6EE7B7), // 더 밝은 에메랄드
-      Color(0xFF34D399), // 밝은 에메랄드
-      Color(0xFF10B981), // 에메랄드
+      Color(0xFF9CA3AF),
+      Color(0xFF6B7280),
+      Color(0xFF4B5563),
     ],
   );
 
   // 그림자 색상
-  static Color get primaryShadow => primaryColor.withOpacity(0.3);
-  static Color get cardShadow => Colors.black.withOpacity(0.08);
-  static Color get lightShadow => Colors.black.withOpacity(0.04);
+  static Color get primaryShadow => Colors.black.withOpacity(0.08);
+  static Color get cardShadow => Colors.black.withOpacity(0.06);
+  static Color get lightShadow => Colors.black.withOpacity(0.03);
 
-  // 뉴스 카테고리 색상 (에메랄드 계열로 통일)
+  // 뉴스 카테고리 색상 (회색 계열로 통일)
   static const Map<String, Color> categoryColors = {
-    '인기': Color(0xFFFF5722),
-    '정치': Color(0xFF10B981),
-    '경제': Color(0xFF059669),
-    '산업': Color(0xFF34D399),
-    '사회': Color(0xFF10B981),
-    '문화': Color(0xFF059669),
-    '과학': Color(0xFF34D399),
-    '스포츠': Color(0xFF10B981),
-    '연예': Color(0xFF059669),
+    '인기': Color(0xFFEF4444),
+    '정치': Color(0xFF4B5563),
+    '경제': Color(0xFF6B7280),
+    '산업': Color(0xFF374151),
+    '사회': Color(0xFF4B5563),
+    '문화': Color(0xFF6B7280),
+    '과학': Color(0xFF374151),
+    '스포츠': Color(0xFF4B5563),
+    '연예': Color(0xFF6B7280),
   };
 }
 
@@ -80,22 +81,17 @@ class AppShadows {
   // 작은 그림자 (버튼, 칩)
   static List<BoxShadow> small = [
     BoxShadow(
-      color: AppColors.primaryColor.withOpacity(0.15),
-      blurRadius: 8,
-      offset: const Offset(0, 2),
+      color: Colors.black.withOpacity(0.04),
+      blurRadius: 4,
+      offset: const Offset(0, 1),
     ),
   ];
 
   // 중간 그림자 (카드)
   static List<BoxShadow> medium = [
     BoxShadow(
-      color: AppColors.primaryColor.withOpacity(0.12),
-      blurRadius: 12,
-      offset: const Offset(0, 4),
-    ),
-    BoxShadow(
-      color: Colors.black.withOpacity(0.05),
-      blurRadius: 6,
+      color: Colors.black.withOpacity(0.06),
+      blurRadius: 8,
       offset: const Offset(0, 2),
     ),
   ];
@@ -103,13 +99,8 @@ class AppShadows {
   // 큰 그림자 (모달, 중요 요소)
   static List<BoxShadow> large = [
     BoxShadow(
-      color: AppColors.primaryColor.withOpacity(0.2),
-      blurRadius: 20,
-      offset: const Offset(0, 8),
-    ),
-    BoxShadow(
-      color: Colors.black.withOpacity(0.08),
-      blurRadius: 10,
+      color: Colors.black.withOpacity(0.1),
+      blurRadius: 16,
       offset: const Offset(0, 4),
     ),
   ];
@@ -117,33 +108,28 @@ class AppShadows {
   // 플로팅 그림자 (플로팅 버튼)
   static List<BoxShadow> floating = [
     BoxShadow(
-      color: AppColors.primaryColor.withOpacity(0.25),
-      blurRadius: 16,
-      offset: const Offset(0, 6),
-    ),
-    BoxShadow(
-      color: AppColors.primaryDark.withOpacity(0.15),
-      blurRadius: 8,
-      offset: const Offset(0, 3),
+      color: Colors.black.withOpacity(0.12),
+      blurRadius: 12,
+      offset: const Offset(0, 4),
     ),
   ];
 
   // 내부 그림자 효과 (inset)
   static List<BoxShadow> inset = [
     BoxShadow(
-      color: AppColors.primaryColor.withOpacity(0.1),
-      blurRadius: 4,
-      offset: const Offset(0, 2),
-      spreadRadius: -2,
+      color: Colors.black.withOpacity(0.05),
+      blurRadius: 2,
+      offset: const Offset(0, 1),
+      spreadRadius: -1,
     ),
   ];
 
   // 밝은 그림자 (강조 효과)
   static List<BoxShadow> glow = [
     BoxShadow(
-      color: AppColors.primaryLight.withOpacity(0.5),
-      blurRadius: 20,
-      spreadRadius: 2,
+      color: AppColors.primaryLight.withOpacity(0.3),
+      blurRadius: 12,
+      spreadRadius: 1,
     ),
   ];
 }
