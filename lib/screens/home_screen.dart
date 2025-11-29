@@ -22,9 +22,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final FirestoreService _firestoreService = FirestoreService();
 
   List<NewsDiscussionItem> _recentNews = [];
+  List<dynamic> _allNewsList = []; // 전체 뉴스 목록 (인기, 즐겨찾기용)
   int _selectedTabIndex = 0;
+  int _selectedQuickTab = 0; // 0=인기, 1=즐겨찾기, 2=참여한 토론
   bool _isLoading = false;
   bool _isRefreshing = false;
+  Set<String> _favoriteNewsUrls = {}; // 즐겨찾기 목록
 
   @override
   void initState() {
@@ -42,8 +45,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final newsCommentProvider = context.read<NewsCommentProvider>();
       await newsCommentProvider.loadParticipatedDiscussions();
 
+      // 즐겨찾기 로드
+      final favorites = await _firestoreService.getUserFavorites();
+      _favoriteNewsUrls = favorites.toSet();
+
+      // 토론 데이터 로드 (참여한 토론 탭용)
       final popularCache = await _firestoreService.getPopularDiscussions();
-      _recentNews = popularCache.take(10).map((data) {
+      _recentNews = popularCache.map((data) {
         final lastCommentTime = data['lastCommentTime'];
         return NewsDiscussionItem(
           newsUrl: data['newsUrl'] ?? '',
@@ -55,6 +63,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               : DateTime.now(),
         );
       }).toList();
+
+      // 댓글 수 기준으로 내림차순 정렬
+      _recentNews.sort((a, b) => b.commentCount.compareTo(a.commentCount));
+
+      // 상위 20개만 유지
+      _recentNews = _recentNews.take(20).toList();
+
+      // TODO: 실제 뉴스 API에서 데이터 로드
+      // 임시로 토론 데이터를 뉴스로 사용 (나중에 NewsAutoService로 교체)
+      _allNewsList = _recentNews;
+
     } catch (e) {
       print('데이터 로딩 오류: $e');
     } finally {
@@ -119,14 +138,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Row(
+          Row(
             children: [
-              Text(
-                '📰', // 신문 이모지
-                style: TextStyle(fontSize: 24),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.article,
+                  color: Color(0xD66B7280),
+                  size: 20,
+                ),
               ),
-              SizedBox(width: 8),
-              Text(
+              const SizedBox(width: 8),
+              const Text(
                 '뉴스 디베이터',
                 style: TextStyle(
                   fontSize: 24,
@@ -156,11 +183,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _buildStatsCards(),
           _buildQuickActions(),
           _buildSectionTitle('최근 참여한 토론', Icons.chat_bubble_outline),
-          if (_recentNews.isEmpty)
-            _buildEmptyState()
-          else
-            ..._recentNews.asMap().entries.map((entry) =>
-                _buildNewsCard(entry.value, entry.key)),
+          _buildContentByTab(),
           const SizedBox(height: 20),
         ],
       ),
@@ -301,14 +324,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         children: [
           Expanded(
             child: _buildActionButton(
-              icon: Icons.navigation,
-              label: '뉴스탐색',
-              isPrimary: true,
+              icon: Icons.trending_up,
+              label: '인기',
+              isPrimary: _selectedQuickTab == 0,
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ExploreScreen()),
-                );
+                setState(() => _selectedQuickTab = 0);
               },
             ),
           ),
@@ -317,17 +337,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: _buildActionButton(
               icon: Icons.bookmark_outline,
               label: '즐겨찾기',
-              isPrimary: false,
-              onTap: () {},
+              isPrimary: _selectedQuickTab == 1,
+              onTap: () {
+                setState(() => _selectedQuickTab = 1);
+              },
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: _buildActionButton(
-              icon: Icons.refresh,
-              label: '새로고침',
-              isPrimary: false,
-              onTap: _onRefresh,
+              icon: Icons.forum_outlined,
+              label: '토론',
+              isPrimary: _selectedQuickTab == 2,
+              onTap: () {
+                setState(() => _selectedQuickTab = 2);
+              },
             ),
           ),
         ],
@@ -375,14 +399,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildSectionTitle(String title, IconData icon) {
+    // 선택된 탭에 따라 제목 변경
+    String displayTitle = title;
+    IconData displayIcon = icon;
+
+    if (_selectedQuickTab == 0) {
+      displayTitle = '인기 뉴스';
+      displayIcon = Icons.trending_up;
+    } else if (_selectedQuickTab == 1) {
+      displayTitle = '즐겨찾기한 뉴스';
+      displayIcon = Icons.bookmark;
+    } else if (_selectedQuickTab == 2) {
+      displayTitle = '최근 참여한 토론';
+      displayIcon = Icons.forum;
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 25, 20, 15),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xD66B7280), size: 20), // 연한 회색 아이콘
+          Icon(displayIcon, color: const Color(0xD66B7280), size: 20),
           const SizedBox(width: 10),
           Text(
-            title,
+            displayTitle,
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -394,7 +433,249 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildNewsCard(NewsDiscussionItem news, int index) {
+  Widget _buildContentByTab() {
+    if (_selectedQuickTab == 0) {
+      // 인기 뉴스
+      return _buildPopularNews();
+    } else if (_selectedQuickTab == 1) {
+      // 즐겨찾기
+      return _buildFavoriteNews();
+    } else {
+      // 참여한 토론
+      return _buildParticipatedDiscussions();
+    }
+  }
+
+  Widget _buildPopularNews() {
+    if (_allNewsList.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.article_outlined,
+                  size: 48,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '인기 뉴스가 없습니다',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Color(0xFF666666),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ExploreScreen()),
+                  );
+                },
+                icon: const Icon(Icons.explore_outlined),
+                label: const Text('뉴스 탐색하기'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xD66B7280),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: _allNewsList.asMap().entries.map((entry) =>
+          _buildNewsCard(entry.value, entry.key, isNewsMode: true)).toList(),
+    );
+  }
+
+  Widget _buildFavoriteNews() {
+    if (_favoriteNewsUrls.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.bookmark_border,
+                  size: 48,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '즐겨찾기한 뉴스가 없습니다',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Color(0xFF666666),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ExploreScreen()),
+                  );
+                },
+                icon: const Icon(Icons.explore_outlined),
+                label: const Text('뉴스 탐색하기'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xD66B7280),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 즐겨찾기한 모든 뉴스 표시
+    final favoriteNews = _allNewsList
+        .where((news) => _favoriteNewsUrls.contains(news.newsUrl))
+        .toList();
+
+    return Column(
+      children: [
+        // 즐겨찾기 정보 표시
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF9E6),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFFFD700)),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.bookmark,
+                color: Color(0xFFFFD700),
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '총 ${_favoriteNewsUrls.length}개의 즐겨찾기 뉴스',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF666666),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // 즐겨찾기한 뉴스 목록
+        if (favoriteNews.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.article_outlined,
+                  size: 48,
+                  color: Colors.grey.shade300,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '즐겨찾기한 뉴스를 표시할 수 없습니다',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF999999),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...favoriteNews.asMap().entries.map((entry) =>
+              _buildNewsCard(entry.value, entry.key, showFavoriteIcon: true, isNewsMode: true)),
+      ],
+    );
+  }
+
+  Widget _buildParticipatedDiscussions() {
+    final newsCommentProvider = context.watch<NewsCommentProvider>();
+    final participatedUrls = newsCommentProvider.participatedNewsUrls.take(5).toList();
+
+    if (participatedUrls.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    // 참여한 토론 중 인기 토론에 있는 것만 표시
+    final participatedDiscussions = _recentNews
+        .where((news) => participatedUrls.contains(news.newsUrl))
+        .toList();
+
+    if (participatedDiscussions.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.forum_outlined,
+                  size: 48,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '참여한 토론 정보를 불러올 수 없습니다',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Color(0xFF666666),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: participatedDiscussions.asMap().entries.map((entry) =>
+          _buildNewsCard(entry.value, entry.key, showParticipated: true)).toList(),
+    );
+  }
+
+  Widget _buildNewsCard(NewsDiscussionItem news, int index, {bool showFavoriteIcon = false, bool showParticipated = false, bool isNewsMode = false}) {
+    final isFavorite = _favoriteNewsUrls.contains(news.newsUrl);
+    final isParticipated = showParticipated || (_selectedQuickTab == 2); // 참여한 토론 탭에서는 모두 참여 표시
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 7.5),
       padding: const EdgeInsets.all(15),
@@ -409,9 +690,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
         // 참여한 토론 강조 - 좌측 테두리
-        border: index < 2
+        border: (isParticipated || showFavoriteIcon)
             ? Border(
-          left: const BorderSide(color: Color(0xD66B7280), width: 3), // 연한 회색 강조
+          left: BorderSide(
+            color: showFavoriteIcon
+                ? const Color(0xFFFFD700)
+                : const Color(0xD66B7280),
+            width: 3,
+          ), // 연한 회색 강조
           top: const BorderSide(color: Color(0xFFF0F0F0)),
           right: const BorderSide(color: Color(0xFFF0F0F0)),
           bottom: const BorderSide(color: Color(0xFFF0F0F0)),
@@ -452,7 +738,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ],
               ),
-              if (index < 3)
+              if (_selectedQuickTab == 0 && index < 3 && !isNewsMode)
                 Container(
                   width: 24,
                   height: 24,
@@ -520,26 +806,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             children: [
               Row(
                 children: [
-                  _buildStatBadge(Icons.favorite_outline, '${news.participantCount}'),
-                  const SizedBox(width: 20),
-                  _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
-                  const SizedBox(width: 20),
-                  _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                  // 뉴스 모드에서는 조회수만, 토론 모드에서는 참여자/댓글 표시
+                  if (isNewsMode) ...[
+                    _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                    const SizedBox(width: 20),
+                    _buildStatBadge(Icons.access_time, '5분'),
+                  ] else ...[
+                    _buildStatBadge(Icons.favorite_outline, '${news.participantCount}'),
+                    const SizedBox(width: 20),
+                    _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
+                    const SizedBox(width: 20),
+                    _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                  ],
                 ],
               ),
               GestureDetector(
                 onTap: () {},
-                child: const Icon(
-                  Icons.bookmark_outline,
+                child: Icon(
+                  isFavorite ? Icons.bookmark : Icons.bookmark_outline,
                   size: 20,
-                  color: Color(0xFFCCCCCC), // 연한 회색
+                  color: isFavorite ? const Color(0xFFFFD700) : const Color(0xFFCCCCCC), // 연한 회색
                 ),
               ),
             ],
           ),
 
-          // 참여 표시
-          if (index < 2)
+          // 참여 표시 (토론 모드에서만)
+          if (isParticipated && !isNewsMode)
             Container(
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
