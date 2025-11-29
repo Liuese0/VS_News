@@ -659,13 +659,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildBottomNavItem(
-                icon: Icons.home,
+                icon: Icons.home_outlined,
                 label: '홈',
                 isSelected: true,
                 onTap: () {},
               ),
               _buildBottomNavItem(
-                icon: Icons.trending_up,
+                icon: Icons.trending_up_outlined,
                 label: '뉴스',
                 isSelected: false,
                 onTap: () {
@@ -676,7 +676,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 },
               ),
               _buildBottomNavItem(
-                icon: Icons.bookmark,
+                icon: Icons.bookmark_outline,
                 label: '즐겨찾기',
                 isSelected: false,
                 onTap: () {},

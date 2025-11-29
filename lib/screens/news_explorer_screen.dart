@@ -99,7 +99,7 @@ class _ExploreScreenState extends State<ExploreScreen>
       child: Scaffold(
         backgroundColor: AppColors.backgroundColor,
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(200),
+          preferredSize: const Size.fromHeight(250),
           child: Container(
             decoration: BoxDecoration(
               color: AppColors.headerBackground,
