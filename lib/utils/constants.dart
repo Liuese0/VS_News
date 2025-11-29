@@ -3,28 +3,149 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 
 class AppColors {
-  static const Color primaryColor = Color(0xFFDC143C); // 크림슨 레드
+  // 에메랄드 그린 색상 체계
+  static const Color primaryColor = Color(0xFF10B981); // 에메랄드 그린
+  static const Color primaryDark = Color(0xFF059669); // 진한 에메랄드
+  static const Color primaryLight = Color(0xFF34D399); // 밝은 에메랄드
+  static const Color primaryLighter = Color(0xFF6EE7B7); // 더 밝은 에메랄드
+
   static const Color secondaryColor = Color(0xFF03DAC6);
   static const Color backgroundColor = Colors.white; // 흰색 배경
   static const Color errorColor = Color(0xFFB00020);
-  static const Color successColor = Color(0xFF4CAF50);
+  static const Color successColor = Color(0xFF10B981); // 에메랄드와 동일
   static const Color warningColor = Color(0xFFFF9800);
   static const Color cardColor = Colors.white;
   static const Color textPrimary = Color(0xFF212121);
   static const Color textSecondary = Color(0xFF757575);
 
-  // 뉴스 카테고리 색상
+  // 그라데이션
+  static const LinearGradient primaryGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF10B981), // 에메랄드
+      Color(0xFF059669), // 진한 에메랄드
+    ],
+  );
+
+  static const LinearGradient primaryGradientVertical = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      Color(0xFF10B981), // 에메랄드
+      Color(0xFF059669), // 진한 에메랄드
+    ],
+  );
+
+  static const LinearGradient lightGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF34D399), // 밝은 에메랄드
+      Color(0xFF10B981), // 에메랄드
+    ],
+  );
+
+  static const LinearGradient shimmerGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFF6EE7B7), // 더 밝은 에메랄드
+      Color(0xFF34D399), // 밝은 에메랄드
+      Color(0xFF10B981), // 에메랄드
+    ],
+  );
+
+  // 그림자 색상
+  static Color get primaryShadow => primaryColor.withOpacity(0.3);
+  static Color get cardShadow => Colors.black.withOpacity(0.08);
+  static Color get lightShadow => Colors.black.withOpacity(0.04);
+
+  // 뉴스 카테고리 색상 (에메랄드 계열로 통일)
   static const Map<String, Color> categoryColors = {
     '인기': Color(0xFFFF5722),
-    '정치': Color(0xFF3F51B5),
-    '경제': Color(0xFF4CAF50),
-    '산업': Color(0xFF607D8B),
-    '사회': Color(0xFF9C27B0),
-    '문화': Color(0xFFE91E63),
-    '과학': Color(0xFF00BCD4),
-    '스포츠': Color(0xFFFF9800),
-    '연예': Color(0xFFCDDC39),
+    '정치': Color(0xFF10B981),
+    '경제': Color(0xFF059669),
+    '산업': Color(0xFF34D399),
+    '사회': Color(0xFF10B981),
+    '문화': Color(0xFF059669),
+    '과학': Color(0xFF34D399),
+    '스포츠': Color(0xFF10B981),
+    '연예': Color(0xFF059669),
   };
+}
+
+// 그림자 스타일 프리셋
+class AppShadows {
+  // 작은 그림자 (버튼, 칩)
+  static List<BoxShadow> small = [
+    BoxShadow(
+      color: AppColors.primaryColor.withOpacity(0.15),
+      blurRadius: 8,
+      offset: const Offset(0, 2),
+    ),
+  ];
+
+  // 중간 그림자 (카드)
+  static List<BoxShadow> medium = [
+    BoxShadow(
+      color: AppColors.primaryColor.withOpacity(0.12),
+      blurRadius: 12,
+      offset: const Offset(0, 4),
+    ),
+    BoxShadow(
+      color: Colors.black.withOpacity(0.05),
+      blurRadius: 6,
+      offset: const Offset(0, 2),
+    ),
+  ];
+
+  // 큰 그림자 (모달, 중요 요소)
+  static List<BoxShadow> large = [
+    BoxShadow(
+      color: AppColors.primaryColor.withOpacity(0.2),
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+    ),
+    BoxShadow(
+      color: Colors.black.withOpacity(0.08),
+      blurRadius: 10,
+      offset: const Offset(0, 4),
+    ),
+  ];
+
+  // 플로팅 그림자 (플로팅 버튼)
+  static List<BoxShadow> floating = [
+    BoxShadow(
+      color: AppColors.primaryColor.withOpacity(0.25),
+      blurRadius: 16,
+      offset: const Offset(0, 6),
+    ),
+    BoxShadow(
+      color: AppColors.primaryDark.withOpacity(0.15),
+      blurRadius: 8,
+      offset: const Offset(0, 3),
+    ),
+  ];
+
+  // 내부 그림자 효과 (inset)
+  static List<BoxShadow> inset = [
+    BoxShadow(
+      color: AppColors.primaryColor.withOpacity(0.1),
+      blurRadius: 4,
+      offset: const Offset(0, 2),
+      spreadRadius: -2,
+    ),
+  ];
+
+  // 밝은 그림자 (강조 효과)
+  static List<BoxShadow> glow = [
+    BoxShadow(
+      color: AppColors.primaryLight.withOpacity(0.5),
+      blurRadius: 20,
+      spreadRadius: 2,
+    ),
+  ];
 }
 
 class ApiConstants {
@@ -43,7 +164,7 @@ class ApiConstants {
     ];
   }
 
-  // News API 키 - 실제 서비스에서는 환경변수나 secure storage 사용
+  // News API 키
   static const String newsApiKey = '4298913bb759467bbf9d04dbdddb9749';
 
   // 뉴스 API 엔드포인트
@@ -52,7 +173,6 @@ class ApiConstants {
   // 한국 뉴스 소스들
   static const List<String> koreanNewsSources = [
     'yonhap-news-agency',
-    // 추가적인 한국 뉴스 소스가 있다면 여기에 추가
   ];
 }
 

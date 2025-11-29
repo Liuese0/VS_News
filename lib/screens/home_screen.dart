@@ -16,7 +16,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   final FirestoreService _firestoreService = FirestoreService();
 
@@ -24,9 +24,23 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedTabIndex = 0;
   bool _isLoading = false;
 
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
   @override
   void initState() {
     super.initState();
+
+    // 펄스 애니메이션 설정
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
@@ -62,26 +76,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final userInfo = authProvider.userInfo ?? {};
 
     return Scaffold(
-      backgroundColor: AppColors.primaryColor,
+      backgroundColor: Colors.grey.shade50,
       body: SafeArea(
         child: Column(
           children: [
             _buildHeader(context, authProvider),
             Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
+              child: _isLoading
+                  ? const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
                 ),
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildContent(),
-              ),
+              )
+                  : _buildContent(),
             ),
           ],
         ),
@@ -97,135 +106,194 @@ class _HomeScreenState extends State<HomeScreen> {
     final commentCount = userInfo['commentCount'] ?? 0;
 
     return Container(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          // 상단 바 (로고 + 프로필)
-          Row(
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.article,
-                      color: AppColors.primaryColor,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    '뉴스 디베이터',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.person_outline, color: Colors.white),
-                onPressed: () => _showLogoutDialog(context, authProvider),
-              ),
-            ],
+      decoration: const BoxDecoration(
+        gradient: AppColors.primaryGradient,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x4010B981), // 에메랄드 25% 투명도
+            blurRadius: 20,
+            offset: Offset(0, 4),
           ),
-          const SizedBox(height: 24),
-
-          // 사용자 정보 카드
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // 상단 바 (로고 + 프로필)
+            Row(
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppColors.primaryColor.withOpacity(0.1),
-                      child: Icon(
-                        Icons.person,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: AppShadows.small,
+                      ),
+                      child: const Icon(
+                        Icons.article,
                         color: AppColors.primaryColor,
-                        size: 28,
+                        size: 20,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${authProvider.nickname} 디베이터',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '활동 디베이터',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      '뉴스 디베이터',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        shadows: [
+                          Shadow(
+                            color: Color(0x40000000),
+                            offset: Offset(0, 2),
+                            blurRadius: 4,
                           ),
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 20),
-                      color: AppColors.textSecondary,
-                      onPressed: () {
-                        _showEditNicknameDialog(context, authProvider);
-                      },
-                    ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                // 통계
-                Row(
-                  children: [
-                    _buildStatItem(
-                      icon: Icons.favorite_outline,
-                      label: '좋아요',
-                      value: favoriteCount.toString(),
-                      color: Colors.red,
-                    ),
-                    _buildStatItem(
-                      icon: Icons.comment_outlined,
-                      label: '의견',
-                      value: commentCount.toString(),
-                      color: Colors.blue,
-                    ),
-                    _buildStatItem(
-                      icon: Icons.bookmark_outline,
-                      label: '토론',
-                      value: tokenCount.toString(),
-                      color: Colors.orange,
-                    ),
-                  ],
+                const Spacer(),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.person_outline, color: Colors.white),
+                    onPressed: () => _showLogoutDialog(context, authProvider),
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+
+            // 사용자 정보 카드 (그라데이션 + 그림자)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white,
+                    Colors.white.withOpacity(0.95),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: AppShadows.large,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      // 그라데이션 아바타
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          gradient: AppColors.shimmerGradient,
+                          shape: BoxShape.circle,
+                          boxShadow: AppShadows.small,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            color: AppColors.primaryColor,
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${authProvider.nickname} 디베이터',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.primaryLight.withOpacity(0.2),
+                                    AppColors.primaryColor.withOpacity(0.1),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                '활동 디베이터',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.primaryDark,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: AppColors.lightGradient,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: AppShadows.small,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          color: Colors.white,
+                          onPressed: () {
+                            _showEditNicknameDialog(context, authProvider);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // 통계 (그라데이션 카드)
+                  Row(
+                    children: [
+                      _buildStatItem(
+                        icon: Icons.favorite,
+                        label: '좋아요',
+                        value: favoriteCount.toString(),
+                      ),
+                      _buildStatItem(
+                        icon: Icons.comment,
+                        label: '의견',
+                        value: commentCount.toString(),
+                      ),
+                      _buildStatItem(
+                        icon: Icons.bookmark,
+                        label: '토론',
+                        value: tokenCount.toString(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -234,30 +302,62 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String label,
     required String value,
-    required Color color,
   }) {
     return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primaryColor.withOpacity(0.1),
+              AppColors.primaryLight.withOpacity(0.05),
+            ],
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.textSecondary,
-            ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.primaryColor.withOpacity(0.2),
+            width: 1.5,
           ),
-        ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: AppColors.lightGradient,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: Colors.white, size: 18),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryDark,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -265,8 +365,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildContent() {
     return Column(
       children: [
-        // 탭 버튼들
-        Padding(
+        // 탭 버튼들 (그라데이션)
+        Container(
+          color: Colors.white,
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
@@ -281,17 +382,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // 최근 참여한 토론 섹션
         Expanded(
-          child: ListView(
-            controller: _scrollController,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Row(
+          child: Container(
+            color: Colors.grey.shade50,
+            child: ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              children: [
+                Row(
                   children: [
-                    Icon(Icons.chat_bubble_outline, size: 20),
-                    SizedBox(width: 8),
-                    Text(
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: AppColors.lightGradient,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: AppShadows.small,
+                      ),
+                      child: const Icon(
+                        Icons.chat_bubble,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
                       '최근 참여한 토론',
                       style: TextStyle(
                         fontSize: 16,
@@ -300,12 +413,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-              ),
-              if (_recentNews.isEmpty)
-                _buildEmptyState()
-              else
-                ..._recentNews.map((news) => _buildNewsDiscussionCard(news)),
-            ],
+                const SizedBox(height: 12),
+                if (_recentNews.isEmpty)
+                  _buildEmptyState()
+                else
+                  ..._recentNews.map((news) => _buildNewsDiscussionCard(news)),
+              ],
+            ),
           ),
         ),
       ],
@@ -330,18 +444,19 @@ class _HomeScreenState extends State<HomeScreen> {
             _loadData();
           }
         },
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.primaryColor
-                : Colors.transparent,
+            gradient: isSelected ? AppColors.primaryGradient : null,
+            color: isSelected ? null : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
-                  ? AppColors.primaryColor
+                  ? Colors.transparent
                   : Colors.grey.shade300,
             ),
+            boxShadow: isSelected ? AppShadows.medium : AppShadows.small,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -373,15 +488,12 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.primaryColor.withOpacity(0.1),
+          width: 1.5,
+        ),
+        boxShadow: AppShadows.medium,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,10 +501,17 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
+                  gradient: AppColors.lightGradient,
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryColor.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: const Row(
                   children: [
@@ -405,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       '정책',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.red,
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -437,58 +556,57 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Icon(
+              _buildStatBadge(
                 Icons.favorite,
-                size: 16,
-                color: Colors.red.shade400,
-              ),
-              const SizedBox(width: 4),
-              Text(
                 '${discussion.participantCount}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red.shade400,
-                ),
+                AppColors.primaryColor,
               ),
-              const SizedBox(width: 16),
-              Icon(
+              const SizedBox(width: 12),
+              _buildStatBadge(
                 Icons.comment,
-                size: 16,
-                color: Colors.grey.shade600,
-              ),
-              const SizedBox(width: 4),
-              Text(
                 '${discussion.commentCount}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
+                Colors.grey.shade600,
               ),
-              const SizedBox(width: 16),
-              Icon(
+              const SizedBox(width: 12),
+              _buildStatBadge(
                 Icons.visibility,
-                size: 16,
-                color: Colors.grey.shade600,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '${(discussion.participantCount * 10)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
+                '${discussion.participantCount * 10}',
+                Colors.grey.shade600,
               ),
               const Spacer(),
-              Icon(
-                Icons.bookmark_outline,
-                size: 18,
-                color: Colors.grey.shade400,
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Icon(
+                  Icons.bookmark_outline,
+                  size: 16,
+                  color: AppColors.primaryColor,
+                ),
               ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatBadge(IconData icon, String value, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 
@@ -498,10 +616,22 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(32),
         child: Column(
           children: [
-            Icon(
-              Icons.forum_outlined,
-              size: 64,
-              color: Colors.grey.shade300,
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryLight.withOpacity(0.2),
+                    AppColors.primaryColor.withOpacity(0.1),
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.forum_outlined,
+                size: 64,
+                color: AppColors.primaryColor.withOpacity(0.5),
+              ),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -512,22 +642,30 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ExploreScreen(),
+            Container(
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: AppShadows.medium,
+              ),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ExploreScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.explore),
+                label: const Text('뉴스 탐색하기'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
                   ),
-                );
-              },
-              icon: const Icon(Icons.explore),
-              label: const Text('뉴스 탐색하기'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryColor,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
                 ),
               ),
             ),
@@ -543,15 +681,15 @@ class _HomeScreenState extends State<HomeScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            color: AppColors.primaryColor.withOpacity(0.08),
+            blurRadius: 12,
             offset: const Offset(0, -2),
           ),
         ],
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -591,24 +729,32 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? AppColors.primaryColor : Colors.grey.shade600,
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: isSelected ? AppColors.primaryColor : Colors.grey.shade600,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: isSelected ? AppColors.lightGradient : null,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected ? AppShadows.small : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : Colors.grey.shade600,
+              size: 24,
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: isSelected ? Colors.white : Colors.grey.shade600,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -617,6 +763,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('로그아웃'),
         content: const Text('정말 로그아웃하시겠습니까?\n앱을 삭제하면 계정 정보가 사라지니 주의하세요.'),
         actions: [
@@ -624,36 +771,42 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('취소'),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                // 로그아웃 처리
-                await authProvider.logout();
-
-                if (context.mounted) {
-                  Navigator.pop(context); // 다이얼로그 닫기
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                        (route) => false,
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('로그아웃 실패: $e'),
-                      backgroundColor: AppColors.errorColor,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.errorColor,
+          Container(
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Text('로그아웃'),
+            child: ElevatedButton(
+              onPressed: () async {
+                try {
+                  await authProvider.logout();
+
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                          (route) => false,
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('로그아웃 실패: $e'),
+                        backgroundColor: AppColors.errorColor,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+              ),
+              child: const Text('로그아웃'),
+            ),
           ),
         ],
       ),
@@ -666,12 +819,19 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('닉네임 변경'),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: '새로운 닉네임을 입력하세요',
-            border: OutlineInputBorder(),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.primaryColor, width: 2),
+            ),
           ),
           maxLength: 10,
         ),
@@ -680,24 +840,35 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('취소'),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final newNickname = controller.text.trim();
-              if (newNickname.isNotEmpty) {
-                try {
-                  await authProvider.updateNickname(newNickname);
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('닉네임이 변경되었습니다')),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('오류: $e')),
-                  );
+          Container(
+            decoration: BoxDecoration(
+              gradient: AppColors.primaryGradient,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: AppShadows.small,
+            ),
+            child: ElevatedButton(
+              onPressed: () async {
+                final newNickname = controller.text.trim();
+                if (newNickname.isNotEmpty) {
+                  try {
+                    await authProvider.updateNickname(newNickname);
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('닉네임이 변경되었습니다')),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('오류: $e')),
+                    );
+                  }
                 }
-              }
-            },
-            child: const Text('저장'),
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+              ),
+              child: const Text('저장'),
+            ),
           ),
         ],
       ),
@@ -718,6 +889,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 }

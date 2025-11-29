@@ -38,9 +38,6 @@ class _ExploreScreenState extends State<ExploreScreen>
     {'name': '과학기술', 'icon': '🔬'},
   ];
 
-  // 태그 목록
-  final List<String> _tags = ['정책', '부동산', '주식', '사건', '문화'];
-
   @override
   void initState() {
     super.initState();
@@ -113,7 +110,7 @@ class _ExploreScreenState extends State<ExploreScreen>
         centerTitle: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_outline, color: AppColors.textPrimary),
+            icon: const Icon(Icons.person_outline, color: AppColors.primaryColor),
             onPressed: () {},
           ),
         ],
@@ -139,7 +136,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                       ),
                       prefixIcon: Icon(
                         Icons.search,
-                        color: Colors.grey.shade500,
+                        color: AppColors.primaryColor,
                       ),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
@@ -220,7 +217,11 @@ class _ExploreScreenState extends State<ExploreScreen>
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
+        ),
+      )
           : _buildNewsList(),
     );
   }
@@ -230,7 +231,7 @@ class _ExploreScreenState extends State<ExploreScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryColor : Colors.transparent,
+          color: isSelected ? AppColors.primaryColor : Colors.white,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected ? AppColors.primaryColor : Colors.grey.shade300,
@@ -280,12 +281,16 @@ class _ExploreScreenState extends State<ExploreScreen>
 
     return RefreshIndicator(
       onRefresh: _loadNews,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _newsList.length,
-        itemBuilder: (context, index) {
-          return _buildNewsCard(_newsList[index]);
-        },
+      color: AppColors.primaryColor,
+      child: Container(
+        color: Colors.grey.shade50,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _newsList.length,
+          itemBuilder: (context, index) {
+            return _buildNewsCard(_newsList[index]);
+          },
+        ),
       ),
     );
   }
@@ -323,7 +328,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: AppColors.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
@@ -335,7 +340,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                         news.autoCategory,
                         style: const TextStyle(
                           fontSize: 11,
-                          color: Colors.red,
+                          color: AppColors.primaryColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -426,9 +431,9 @@ class _ExploreScreenState extends State<ExploreScreen>
             Row(
               children: [
                 Icon(
-                  Icons.favorite,
+                  isFavorite ? Icons.favorite : Icons.favorite_outline,
                   size: 16,
-                  color: isFavorite ? Colors.red : Colors.grey.shade400,
+                  color: isFavorite ? AppColors.primaryColor : Colors.grey.shade400,
                 ),
                 const SizedBox(width: 4),
                 Text(
@@ -436,7 +441,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: isFavorite ? Colors.red : Colors.grey.shade600,
+                    color: isFavorite ? AppColors.primaryColor : Colors.grey.shade600,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -555,7 +560,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   }
 }
 
-// 뉴스 상세보기 + 토론 위젯 (기존 코드 유지)
+// 뉴스 상세보기 + 토론 위젯
 class NewsDetailWithDiscussion extends StatefulWidget {
   final AutoCollectedNews news;
 
@@ -746,7 +751,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   title: const Text('찬성', style: TextStyle(fontSize: 14)),
                   value: 'pro',
                   groupValue: _selectedStance,
-                  activeColor: Colors.blue,
+                  activeColor: AppColors.primaryColor,
                   contentPadding: EdgeInsets.zero,
                   onChanged: (value) {
                     setState(() => _selectedStance = value!);
@@ -758,7 +763,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   title: const Text('반대', style: TextStyle(fontSize: 14)),
                   value: 'con',
                   groupValue: _selectedStance,
-                  activeColor: Colors.red,
+                  activeColor: Colors.grey,
                   contentPadding: EdgeInsets.zero,
                   onChanged: (value) {
                     setState(() => _selectedStance = value!);
@@ -781,7 +786,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             child: ElevatedButton(
               onPressed: _isSubmittingComment ? null : _submitComment,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _selectedStance == 'pro' ? Colors.blue : Colors.red,
+                backgroundColor: AppColors.primaryColor,
               ),
               child: _isSubmittingComment
                   ? const CircularProgressIndicator(color: Colors.white)
@@ -802,8 +807,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: comment.isPro
-              ? Colors.blue.withOpacity(0.3)
-              : Colors.red.withOpacity(0.3),
+              ? AppColors.primaryColor.withOpacity(0.3)
+              : Colors.grey.withOpacity(0.3),
         ),
       ),
       child: Column(
@@ -815,15 +820,15 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: comment.isPro
-                      ? Colors.blue.withOpacity(0.1)
-                      : Colors.red.withOpacity(0.1),
+                      ? AppColors.primaryColor.withOpacity(0.1)
+                      : Colors.grey.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   comment.isPro ? '찬성' : '반대',
                   style: TextStyle(
                     fontSize: 12,
-                    color: comment.isPro ? Colors.blue : Colors.red,
+                    color: comment.isPro ? AppColors.primaryColor : Colors.grey,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
