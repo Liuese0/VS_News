@@ -196,5 +196,134 @@ class FirestoreService {
 
     return snapshot.docs.map((doc) => doc.data()['newsUrl'] as String).toList();
   }
-}
 
+  // ========== 뉴스 정보 가져오기 (새로 추가) ==========
+
+  // 특정 뉴스 URL들의 정보 가져오기
+  Future<Map<String, Map<String, dynamic>>> getNewsInfoByUrls(List<String> newsUrls) async {
+    if (newsUrls.isEmpty) return {};
+
+    try {
+      // 모든 뉴스에 대한 댓글 통계를 한 번에 가져오기
+      final Map<String, Map<String, dynamic>> newsInfo = {};
+
+      for (final url in newsUrls) {
+        // 댓글 가져오기
+        final commentsSnapshot = await _firestore
+            .collection('comments')
+            .where('newsUrl', isEqualTo: url)
+            .orderBy('createdAt', descending: true)
+            .limit(1)
+            .get();
+
+        // 댓글 개수
+        final commentCountSnapshot = await _firestore
+            .collection('comments')
+            .where('newsUrl', isEqualTo: url)
+            .count()
+            .get();
+
+        // 참여자 수
+        final participantSnapshot = await _firestore
+            .collection('comments')
+            .where('newsUrl', isEqualTo: url)
+            .get();
+
+        final uniqueUsers = participantSnapshot.docs
+            .map((doc) => doc.data()['userId'])
+            .toSet()
+            .length;
+
+        // 제목은 첫 번째 댓글에서 추출하거나 기본값 사용
+        String title = '뉴스 제목';
+        DateTime lastCommentTime = DateTime.now();
+
+        if (commentsSnapshot.docs.isNotEmpty) {
+          final firstComment = commentsSnapshot.docs.first.data();
+          // 제목 정보가 있다면 사용 (없을 수 있음)
+          lastCommentTime = (firstComment['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+        }
+
+        newsInfo[url] = {
+          'newsUrl': url,
+          'title': title,
+          'commentCount': commentCountSnapshot.count ?? 0,
+          'participantCount': uniqueUsers,
+          'lastCommentTime': lastCommentTime,
+        };
+      }
+
+      return newsInfo;
+    } catch (e) {
+      print('뉴스 정보 로드 실패: $e');
+      return {};
+    }
+  }
+
+  // 즐겨찾기한 뉴스의 상세 정보 가져오기
+  Future<List<Map<String, dynamic>>> getFavoriteNewsDetails() async {
+    try {
+      final uid = await _authService.getCurrentUid();
+
+      // 1. 즐겨찾기 목록 가져오기
+      final favoritesSnapshot = await _firestore
+          .collection('favorites')
+          .where('userId', isEqualTo: uid)
+          .get();
+
+      final newsUrls = favoritesSnapshot.docs
+          .map((doc) => doc.data()['newsUrl'] as String)
+          .toList();
+
+      if (newsUrls.isEmpty) return [];
+
+      // 2. 각 뉴스의 통계 정보 가져오기
+      final List<Map<String, dynamic>> newsDetails = [];
+
+      for (final url in newsUrls) {
+        // 댓글 통계
+        final commentCountSnapshot = await _firestore
+            .collection('comments')
+            .where('newsUrl', isEqualTo: url)
+            .count()
+            .get();
+
+        final commentsSnapshot = await _firestore
+            .collection('comments')
+            .where('newsUrl', isEqualTo: url)
+            .get();
+
+        final uniqueUsers = commentsSnapshot.docs
+            .map((doc) => doc.data()['userId'])
+            .toSet()
+            .length;
+
+        // 마지막 댓글 시간
+        DateTime lastCommentTime = DateTime.now();
+        if (commentsSnapshot.docs.isNotEmpty) {
+          final latestComment = commentsSnapshot.docs
+              .map((doc) => doc.data())
+              .reduce((a, b) {
+            final aTime = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+            final bTime = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+            return aTime.isAfter(bTime) ? a : b;
+          });
+          lastCommentTime = (latestComment['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+        }
+
+        newsDetails.add({
+          'newsUrl': url,
+          'title': '즐겨찾기한 뉴스', // 실제로는 뉴스 제목을 저장하거나 가져와야 함
+          'commentCount': commentCountSnapshot.count ?? 0,
+          'participantCount': uniqueUsers,
+          'lastCommentTime': lastCommentTime,
+        });
+      }
+
+      return newsDetails;
+    } catch (e) {
+      print('즐겨찾기 뉴스 상세 정보 로드 실패: $e');
+      return [];
+    }
+  }
+}
