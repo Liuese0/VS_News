@@ -9,6 +9,7 @@ import '../services/firestore_service.dart';
 import '../utils/constants.dart';
 import '../providers/auth_provider.dart';
 import '../providers/news_comment_provider.dart';
+import '../providers/news_provider.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -64,13 +65,10 @@ class _ExploreScreenState extends State<ExploreScreen>
     setState(() => _isLoading = true);
 
     try {
-      List<AutoCollectedNews> newsList;
+      final newsProvider = context.read<NewsProvider>();
 
-      if (_selectedCategory == '전체') {
-        newsList = await _newsService.collectKoreanNews();
-      } else {
-        newsList = await _newsService.searchNewsByCategory(_selectedCategory);
-      }
+      // NewsProvider를 통해 뉴스 로드 (캐싱됨)
+      final newsList = await newsProvider.loadNews(category: _selectedCategory);
 
       setState(() {
         _newsList = newsList;
@@ -93,8 +91,8 @@ class _ExploreScreenState extends State<ExploreScreen>
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
-        statusBarColor: AppColors.headerBackground, // 상단바 배경색
-        statusBarIconBrightness: Brightness.dark, // 아이콘 어둡게
+        statusBarColor: AppColors.headerBackground,
+        statusBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor: AppColors.backgroundColor,
@@ -523,15 +521,24 @@ class _ExploreScreenState extends State<ExploreScreen>
           );
           return;
         }
-        await _firestoreService.addFavorite(newsUrl);
-        setState(() => _favoriteNewsIds.add(newsUrl));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('즐겨찾기에 추가되었습니다'),
-            backgroundColor: AppColors.successColor,
-            duration: Duration(seconds: 1),
-          ),
-        );
+
+        // NewsProvider에서 뉴스 찾기
+        final newsProvider = context.read<NewsProvider>();
+        final currentNews = newsProvider.getNewsByUrl(newsUrl);
+
+        if (currentNews != null) {
+          // URL만 저장 (기존 방식 유지)
+          await _firestoreService.addFavorite(newsUrl);
+          setState(() => _favoriteNewsIds.add(newsUrl));
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('즐겨찾기에 추가되었습니다'),
+              backgroundColor: AppColors.successColor,
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

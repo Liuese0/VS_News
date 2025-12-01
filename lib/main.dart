@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'providers/auth_provider.dart';
 import 'providers/news_comment_provider.dart';
+import 'providers/news_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
 import 'utils/constants.dart';
@@ -26,6 +27,7 @@ class NewsDebaterApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => NewsCommentProvider()),
+        ChangeNotifierProvider(create: (_) => NewsProvider()),
       ],
       child: MaterialApp(
         title: AppStrings.appName,

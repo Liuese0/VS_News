@@ -136,7 +136,7 @@ class FirestoreService {
     }).toList();
   }
 
-  // 댓글 개수 가져오기
+// 댓글 개수 가져오기 (기존 메서드 수정)
   Future<int> getCommentCount(String newsUrl) async {
     final snapshot = await _firestore
         .collection('comments')
@@ -147,7 +147,7 @@ class FirestoreService {
     return snapshot.count ?? 0;
   }
 
-  // 참여자 수 가져오기 (중복 제거)
+// 참여자 수 가져오기 (기존 메서드 수정)
   Future<int> getParticipantCount(String newsUrl) async {
     final snapshot = await _firestore
         .collection('comments')

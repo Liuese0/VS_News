@@ -9,6 +9,7 @@ import '../screens/news_explorer_screen.dart';
 import '../screens/auth/welcome_screen.dart';
 import '../utils/constants.dart';
 import '../services/firestore_service.dart';
+import '../providers/news_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -41,20 +42,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+// lib/screens/home_screen.dart의 _loadData 메서드 전체 교체
+
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
     try {
       final newsCommentProvider = context.read<NewsCommentProvider>();
+      final newsProvider = context.read<NewsProvider>(); // NewsProvider 추가
 
-      // 1. 즐겨찾기 목록 로드
+      // 1. 즐겨찾기 URL 목록 로드
       final favorites = await _firestoreService.getUserFavorites();
       _favoriteNewsUrls = favorites.toSet();
 
-      // 2. 모든 뉴스의 댓글 통계 로드 (캐시에서)
+      // 2. 인기 뉴스 로드
       final allNewsCache = await _firestoreService.getPopularDiscussions();
 
-      // 3. 인기 뉴스 = 댓글이 많은 순서대로 모든 뉴스 정렬
       _popularNews = allNewsCache.map((data) {
         final lastCommentTime = data['lastCommentTime'];
         return NewsDiscussionItem(
@@ -68,48 +71,72 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       }).toList();
 
-      // 댓글 수 기준 내림차순 정렬 (상위 20개)
       _popularNews.sort((a, b) => b.commentCount.compareTo(a.commentCount));
       _popularNews = _popularNews.take(20).toList();
 
-      // 4. 즐겨찾기한 뉴스 상세 정보 로드
-      if (_favoriteNewsUrls.isNotEmpty) {
-        final favoriteNewsDetails = await _firestoreService.getFavoriteNewsDetails();
-        _favoriteNews = favoriteNewsDetails.map((data) {
-          final lastCommentTime = data['lastCommentTime'];
-          return NewsDiscussionItem(
-            newsUrl: data['newsUrl'] ?? '',
-            title: data['title'] ?? '즐겨찾기한 뉴스',
-            participantCount: data['participantCount'] ?? 0,
-            commentCount: data['commentCount'] ?? 0,
-            lastCommentTime: lastCommentTime is DateTime
-                ? lastCommentTime
-                : DateTime.now(),
-          );
-        }).toList();
+      // 3. 즐겨찾기한 뉴스 - NewsProvider 캐시에서 가져오기
+      _favoriteNews = [];
 
-        // 캐시에서 제목 찾아서 업데이트
-        for (var favorite in _favoriteNews) {
-          final cachedNews = _popularNews.firstWhere(
-                (news) => news.newsUrl == favorite.newsUrl,
-            orElse: () => favorite,
-          );
-          if (cachedNews != favorite && cachedNews.title != '제목 없음') {
-            favorite.title = cachedNews.title;
+      if (_favoriteNewsUrls.isNotEmpty) {
+        print('즐겨찾기 URL 개수: ${_favoriteNewsUrls.length}');
+        print('NewsProvider 캐시 개수: ${newsProvider.cachedNewsCount}');
+
+        for (final url in _favoriteNewsUrls) {
+          // NewsProvider 캐시에서 뉴스 찾기
+          final cachedNews = newsProvider.getNewsByUrl(url);
+
+          if (cachedNews != null) {
+            print('캐시에서 찾음: ${cachedNews.title}');
+
+            // 댓글 통계 가져오기
+            final commentCountSnapshot = await _firestoreService.getCommentCount(url);
+            final participantCount = await _firestoreService.getParticipantCount(url);
+
+            // 마지막 댓글 시간
+            DateTime lastCommentTime = cachedNews.publishedAt;
+            final commentsData = await _firestoreService.getComments(url);
+
+            if (commentsData.isNotEmpty) {
+              final latestComment = commentsData.first;
+              final createdAt = latestComment['createdAt'];
+              lastCommentTime = createdAt is Timestamp
+                  ? createdAt.toDate()
+                  : DateTime.now();
+            }
+
+            _favoriteNews.add(NewsDiscussionItem(
+              newsUrl: url,
+              title: cachedNews.title,
+              participantCount: participantCount,
+              commentCount: commentCountSnapshot,
+              lastCommentTime: lastCommentTime,
+              description: cachedNews.description,
+              imageUrl: cachedNews.imageUrl,
+              source: cachedNews.source,
+            ));
+          } else {
+            print('캐시에 없음: $url');
+            // 캐시에 없으면 제목만 표시
+            _favoriteNews.add(NewsDiscussionItem(
+              newsUrl: url,
+              title: '즐겨찾기한 뉴스',
+              participantCount: 0,
+              commentCount: 0,
+              lastCommentTime: DateTime.now(),
+              description: '뉴스 탐색 화면에서 해당 카테고리를 먼저 열어주세요',
+            ));
           }
         }
-      } else {
-        _favoriteNews = [];
       }
 
-      // 5. 참여한 토론 로드 (인기 토론 10개 중 본인이 참여한 것만)
+      print('로드된 즐겨찾기 뉴스 개수: ${_favoriteNews.length}');
+
+      // 4. 참여한 토론 로드
       await newsCommentProvider.loadParticipatedDiscussions();
       final participatedUrls = newsCommentProvider.participatedNewsUrls.toSet();
 
-      // 인기 토론 상위 10개
       final topDiscussions = _popularNews.take(10).toList();
 
-      // 그 중 본인이 참여한 것만 필터링
       _participatedDiscussions = topDiscussions
           .where((news) => participatedUrls.contains(news.newsUrl))
           .toList();
@@ -1121,12 +1148,17 @@ class RefreshControl extends StatelessWidget {
   }
 }
 
+// lib/screens/home_screen.dart 맨 아래 (기존 클래스 교체)
+
 class NewsDiscussionItem {
   final String newsUrl;
-  String title; // final 제거하여 수정 가능하게 변경
+  String title;
   final int participantCount;
   final int commentCount;
   final DateTime lastCommentTime;
+  String? description;  // 추가
+  String? imageUrl;     // 추가
+  String? source;       // 추가
 
   NewsDiscussionItem({
     required this.newsUrl,
@@ -1134,5 +1166,8 @@ class NewsDiscussionItem {
     required this.participantCount,
     required this.commentCount,
     required this.lastCommentTime,
+    this.description,   // 추가
+    this.imageUrl,      // 추가
+    this.source,        // 추가
   });
 }
