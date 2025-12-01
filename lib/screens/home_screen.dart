@@ -22,16 +22,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   final FirestoreService _firestoreService = FirestoreService();
 
-  // 뉴스와 토론을 명확히 분리
-  List<NewsDiscussionItem> _popularNews = []; // 인기 뉴스 (댓글 많은 순)
-  List<NewsDiscussionItem> _favoriteNews = []; // 즐겨찾기한 뉴스
-  List<NewsDiscussionItem> _participatedDiscussions = []; // 참여한 토론 (인기 토론 중 본인이 참여한 것)
+  List<NewsDiscussionItem> _popularNews = [];
+  List<NewsDiscussionItem> _favoriteNews = [];
+  List<NewsDiscussionItem> _participatedDiscussions = [];
 
   int _selectedTabIndex = 0;
-  int _selectedQuickTab = 0; // 0=인기 뉴스, 1=즐겨찾기, 2=참여한 토론
+  int _selectedQuickTab = 0;
   bool _isLoading = false;
   bool _isRefreshing = false;
-  Set<String> _favoriteNewsUrls = {}; // 즐겨찾기 URL 목록
+  Set<String> _favoriteNewsUrls = {};
 
   @override
   void initState() {
@@ -42,20 +41,45 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-// lib/screens/home_screen.dart의 _loadData 메서드 전체 교체
-
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
 
     try {
       final newsCommentProvider = context.read<NewsCommentProvider>();
-      final newsProvider = context.read<NewsProvider>(); // NewsProvider 추가
 
-      // 1. 즐겨찾기 URL 목록 로드
-      final favorites = await _firestoreService.getUserFavorites();
-      _favoriteNewsUrls = favorites.toSet();
+      // 1. 즐겨찾기 뉴스 로드 (메타데이터 포함)
+      final favoritesWithDetails = await _firestoreService.getUserFavoritesWithDetails();
+      _favoriteNewsUrls = favoritesWithDetails.map((f) => f['newsUrl'] as String).toSet();
 
-      // 2. 인기 뉴스 로드
+      // 2. 즐겨찾기 뉴스 리스트 생성
+      _favoriteNews = [];
+      for (final favorite in favoritesWithDetails) {
+        final newsUrl = favorite['newsUrl'] as String;
+
+        // 댓글 통계 가져오기
+        final commentCount = await _firestoreService.getCommentCount(newsUrl);
+        final participantCount = await _firestoreService.getParticipantCount(newsUrl);
+
+        // 발행 시간
+        DateTime lastCommentTime = DateTime.now();
+        final publishedAt = favorite['publishedAt'];
+        if (publishedAt is Timestamp) {
+          lastCommentTime = publishedAt.toDate();
+        }
+
+        _favoriteNews.add(NewsDiscussionItem(
+          newsUrl: newsUrl,
+          title: favorite['title'] ?? '제목 없음',
+          participantCount: participantCount,
+          commentCount: commentCount,
+          lastCommentTime: lastCommentTime,
+          description: favorite['description'],
+          imageUrl: favorite['imageUrl'],
+          source: favorite['source'],
+        ));
+      }
+
+      // 3. 인기 뉴스 로드
       final allNewsCache = await _firestoreService.getPopularDiscussions();
 
       _popularNews = allNewsCache.map((data) {
@@ -73,63 +97,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       _popularNews.sort((a, b) => b.commentCount.compareTo(a.commentCount));
       _popularNews = _popularNews.take(20).toList();
-
-      // 3. 즐겨찾기한 뉴스 - NewsProvider 캐시에서 가져오기
-      _favoriteNews = [];
-
-      if (_favoriteNewsUrls.isNotEmpty) {
-        print('즐겨찾기 URL 개수: ${_favoriteNewsUrls.length}');
-        print('NewsProvider 캐시 개수: ${newsProvider.cachedNewsCount}');
-
-        for (final url in _favoriteNewsUrls) {
-          // NewsProvider 캐시에서 뉴스 찾기
-          final cachedNews = newsProvider.getNewsByUrl(url);
-
-          if (cachedNews != null) {
-            print('캐시에서 찾음: ${cachedNews.title}');
-
-            // 댓글 통계 가져오기
-            final commentCountSnapshot = await _firestoreService.getCommentCount(url);
-            final participantCount = await _firestoreService.getParticipantCount(url);
-
-            // 마지막 댓글 시간
-            DateTime lastCommentTime = cachedNews.publishedAt;
-            final commentsData = await _firestoreService.getComments(url);
-
-            if (commentsData.isNotEmpty) {
-              final latestComment = commentsData.first;
-              final createdAt = latestComment['createdAt'];
-              lastCommentTime = createdAt is Timestamp
-                  ? createdAt.toDate()
-                  : DateTime.now();
-            }
-
-            _favoriteNews.add(NewsDiscussionItem(
-              newsUrl: url,
-              title: cachedNews.title,
-              participantCount: participantCount,
-              commentCount: commentCountSnapshot,
-              lastCommentTime: lastCommentTime,
-              description: cachedNews.description,
-              imageUrl: cachedNews.imageUrl,
-              source: cachedNews.source,
-            ));
-          } else {
-            print('캐시에 없음: $url');
-            // 캐시에 없으면 제목만 표시
-            _favoriteNews.add(NewsDiscussionItem(
-              newsUrl: url,
-              title: '즐겨찾기한 뉴스',
-              participantCount: 0,
-              commentCount: 0,
-              lastCommentTime: DateTime.now(),
-              description: '뉴스 탐색 화면에서 해당 카테고리를 먼저 열어주세요',
-            ));
-          }
-        }
-      }
-
-      print('로드된 즐겨찾기 뉴스 개수: ${_favoriteNews.length}');
 
       // 4. 참여한 토론 로드
       await newsCommentProvider.loadParticipatedDiscussions();
@@ -511,7 +478,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // 인기 뉴스 탭: 댓글이 많은 순서대로 뉴스 표시
   Widget _buildPopularNewsList() {
     if (_popularNews.isEmpty) {
       return _buildEmptyState(
@@ -526,7 +492,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // 즐겨찾기 탭: 본인이 즐겨찾기한 뉴스만 표시
   Widget _buildFavoriteNewsList() {
     if (_favoriteNews.isEmpty) {
       return _buildEmptyState(
@@ -571,7 +536,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // 참여한 토론 탭: 인기 토론 10개 중 본인이 참여한 것만 표시
   Widget _buildParticipatedDiscussionsList() {
     if (_participatedDiscussions.isEmpty) {
       return _buildEmptyState(
@@ -664,9 +628,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       color: const Color(0xD66B7280),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      '경제',
-                      style: TextStyle(
+                    child: Text(
+                      news.source ?? '뉴스',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -720,7 +684,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           const SizedBox(height: 8),
 
           Text(
-            '정부의 가상화폐 규제 강화 방안에 투자자들 사이에서 격론이 벌어지고 있습니다...',
+            news.description ?? '뉴스 내용을 확인하려면 탭하세요.',
             style: const TextStyle(
               color: Color(0xFF666666),
               fontSize: 14,
@@ -731,29 +695,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 12),
 
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildTag('#비트코인'),
-              _buildTag('#규제'),
-              _buildTag('#투자'),
-            ],
-          ),
-          const SizedBox(height: 12),
-
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
                   if (isNewsMode) ...[
-                    // 뉴스 모드: 조회수, 읽기시간 표시
                     _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
                     const SizedBox(width: 20),
-                    _buildStatBadge(Icons.access_time, '5분'),
+                    _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
                   ] else ...[
-                    // 토론 모드: 좋아요, 댓글, 조회수 표시
                     _buildStatBadge(Icons.favorite_outline, '${news.participantCount}'),
                     const SizedBox(width: 20),
                     _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
@@ -763,7 +714,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ],
               ),
               GestureDetector(
-                onTap: () => _toggleFavorite(news.newsUrl),
+                onTap: () => _toggleFavorite(news),
                 child: Icon(
                   isFavorite ? Icons.bookmark : Icons.bookmark_outline,
                   size: 20,
@@ -791,23 +742,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTag(String tag) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F0F0),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        tag,
-        style: const TextStyle(
-          color: Color(0xFF666666),
-          fontSize: 12,
-        ),
       ),
     );
   }
@@ -878,14 +812,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // 즐겨찾기 토글
-  Future<void> _toggleFavorite(String newsUrl) async {
+  Future<void> _toggleFavorite(NewsDiscussionItem news) async {
     try {
-      if (_favoriteNewsUrls.contains(newsUrl)) {
-        await _firestoreService.removeFavorite(newsUrl);
+      if (_favoriteNewsUrls.contains(news.newsUrl)) {
+        await _firestoreService.removeFavorite(news.newsUrl);
         setState(() {
-          _favoriteNewsUrls.remove(newsUrl);
-          _favoriteNews.removeWhere((news) => news.newsUrl == newsUrl);
+          _favoriteNewsUrls.remove(news.newsUrl);
+          _favoriteNews.removeWhere((n) => n.newsUrl == news.newsUrl);
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -903,21 +836,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
           return;
         }
-        await _firestoreService.addFavorite(newsUrl);
+        await _firestoreService.addFavorite(
+          news.newsUrl,
+          title: news.title,
+          description: news.description,
+          imageUrl: news.imageUrl,
+          source: news.source,
+          publishedAt: news.lastCommentTime,
+        );
         setState(() {
-          _favoriteNewsUrls.add(newsUrl);
-          // 인기 뉴스에서 해당 뉴스를 찾아 즐겨찾기 목록에 추가
-          final newsItem = _popularNews.firstWhere(
-                (news) => news.newsUrl == newsUrl,
-            orElse: () => NewsDiscussionItem(
-              newsUrl: newsUrl,
-              title: '제목 없음',
-              participantCount: 0,
-              commentCount: 0,
-              lastCommentTime: DateTime.now(),
-            ),
-          );
-          _favoriteNews.add(newsItem);
+          _favoriteNewsUrls.add(news.newsUrl);
+          _favoriteNews.add(news);
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1148,17 +1077,15 @@ class RefreshControl extends StatelessWidget {
   }
 }
 
-// lib/screens/home_screen.dart 맨 아래 (기존 클래스 교체)
-
 class NewsDiscussionItem {
   final String newsUrl;
   String title;
   final int participantCount;
   final int commentCount;
   final DateTime lastCommentTime;
-  String? description;  // 추가
-  String? imageUrl;     // 추가
-  String? source;       // 추가
+  String? description;
+  String? imageUrl;
+  String? source;
 
   NewsDiscussionItem({
     required this.newsUrl,
@@ -1166,8 +1093,8 @@ class NewsDiscussionItem {
     required this.participantCount,
     required this.commentCount,
     required this.lastCommentTime,
-    this.description,   // 추가
-    this.imageUrl,      // 추가
-    this.source,        // 추가
+    this.description,
+    this.imageUrl,
+    this.source,
   });
 }

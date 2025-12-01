@@ -12,19 +12,32 @@ class FirestoreService {
 
   // ========== 즐겨찾기 관리 ==========
 
-  // 즐겨찾기 추가
-  Future<void> addFavorite(String newsUrl) async {
+  // 즐겨찾기 추가 (뉴스 메타데이터 포함)
+  Future<void> addFavorite(String newsUrl, {
+    String? title,
+    String? description,
+    String? imageUrl,
+    String? source,
+    DateTime? publishedAt,
+  }) async {
     final uid = await _authService.getCurrentUid();
     final favoriteId = '${uid}_${newsUrl.hashCode.abs()}';
 
     final batch = _firestore.batch();
 
-    // 1. favorites 문서 생성
+    // 1. favorites 문서 생성 (뉴스 메타데이터 포함)
     batch.set(
       _firestore.collection('favorites').doc(favoriteId),
       {
         'userId': uid,
         'newsUrl': newsUrl,
+        'title': title ?? '제목 없음',
+        'description': description ?? '',
+        'imageUrl': imageUrl,
+        'source': source ?? '알 수 없음',
+        'publishedAt': publishedAt != null
+            ? Timestamp.fromDate(publishedAt)
+            : FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
       },
     );
@@ -66,7 +79,7 @@ class FirestoreService {
     return doc.exists;
   }
 
-  // 사용자의 모든 즐겨찾기 가져오기
+  // 사용자의 모든 즐겨찾기 URL만 가져오기
   Future<List<String>> getUserFavorites() async {
     final uid = await _authService.getCurrentUid();
 
@@ -76,6 +89,30 @@ class FirestoreService {
         .get();
 
     return snapshot.docs.map((doc) => doc.data()['newsUrl'] as String).toList();
+  }
+
+  // 사용자의 모든 즐겨찾기 가져오기 (메타데이터 포함)
+  Future<List<Map<String, dynamic>>> getUserFavoritesWithDetails() async {
+    final uid = await _authService.getCurrentUid();
+
+    final snapshot = await _firestore
+        .collection('favorites')
+        .where('userId', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      return {
+        'newsUrl': data['newsUrl'] as String,
+        'title': data['title'] ?? '제목 없음',
+        'description': data['description'] ?? '',
+        'imageUrl': data['imageUrl'],
+        'source': data['source'] ?? '알 수 없음',
+        'publishedAt': data['publishedAt'],
+        'createdAt': data['createdAt'],
+      };
+    }).toList();
   }
 
   // ========== 댓글 관리 ==========
@@ -136,7 +173,7 @@ class FirestoreService {
     }).toList();
   }
 
-// 댓글 개수 가져오기 (기존 메서드 수정)
+  // 댓글 개수 가져오기
   Future<int> getCommentCount(String newsUrl) async {
     final snapshot = await _firestore
         .collection('comments')
@@ -147,7 +184,7 @@ class FirestoreService {
     return snapshot.count ?? 0;
   }
 
-// 참여자 수 가져오기 (기존 메서드 수정)
+  // 참여자 수 가져오기
   Future<int> getParticipantCount(String newsUrl) async {
     final snapshot = await _firestore
         .collection('comments')
@@ -197,18 +234,16 @@ class FirestoreService {
     return snapshot.docs.map((doc) => doc.data()['newsUrl'] as String).toList();
   }
 
-  // ========== 뉴스 정보 가져오기 (새로 추가) ==========
+  // ========== 뉴스 정보 가져오기 ==========
 
   // 특정 뉴스 URL들의 정보 가져오기
   Future<Map<String, Map<String, dynamic>>> getNewsInfoByUrls(List<String> newsUrls) async {
     if (newsUrls.isEmpty) return {};
 
     try {
-      // 모든 뉴스에 대한 댓글 통계를 한 번에 가져오기
       final Map<String, Map<String, dynamic>> newsInfo = {};
 
       for (final url in newsUrls) {
-        // 댓글 가져오기
         final commentsSnapshot = await _firestore
             .collection('comments')
             .where('newsUrl', isEqualTo: url)
@@ -216,14 +251,12 @@ class FirestoreService {
             .limit(1)
             .get();
 
-        // 댓글 개수
         final commentCountSnapshot = await _firestore
             .collection('comments')
             .where('newsUrl', isEqualTo: url)
             .count()
             .get();
 
-        // 참여자 수
         final participantSnapshot = await _firestore
             .collection('comments')
             .where('newsUrl', isEqualTo: url)
@@ -234,13 +267,11 @@ class FirestoreService {
             .toSet()
             .length;
 
-        // 제목은 첫 번째 댓글에서 추출하거나 기본값 사용
         String title = '뉴스 제목';
         DateTime lastCommentTime = DateTime.now();
 
         if (commentsSnapshot.docs.isNotEmpty) {
           final firstComment = commentsSnapshot.docs.first.data();
-          // 제목 정보가 있다면 사용 (없을 수 있음)
           lastCommentTime = (firstComment['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
         }
 
@@ -265,7 +296,6 @@ class FirestoreService {
     try {
       final uid = await _authService.getCurrentUid();
 
-      // 1. 즐겨찾기 목록 가져오기
       final favoritesSnapshot = await _firestore
           .collection('favorites')
           .where('userId', isEqualTo: uid)
@@ -277,11 +307,9 @@ class FirestoreService {
 
       if (newsUrls.isEmpty) return [];
 
-      // 2. 각 뉴스의 통계 정보 가져오기
       final List<Map<String, dynamic>> newsDetails = [];
 
       for (final url in newsUrls) {
-        // 댓글 통계
         final commentCountSnapshot = await _firestore
             .collection('comments')
             .where('newsUrl', isEqualTo: url)
@@ -298,7 +326,6 @@ class FirestoreService {
             .toSet()
             .length;
 
-        // 마지막 댓글 시간
         DateTime lastCommentTime = DateTime.now();
         if (commentsSnapshot.docs.isNotEmpty) {
           final latestComment = commentsSnapshot.docs
@@ -313,7 +340,7 @@ class FirestoreService {
 
         newsDetails.add({
           'newsUrl': url,
-          'title': '즐겨찾기한 뉴스', // 실제로는 뉴스 제목을 저장하거나 가져와야 함
+          'title': '즐겨찾기한 뉴스',
           'commentCount': commentCountSnapshot.count ?? 0,
           'participantCount': uniqueUsers,
           'lastCommentTime': lastCommentTime,

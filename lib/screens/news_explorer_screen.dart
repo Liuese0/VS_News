@@ -30,7 +30,6 @@ class _ExploreScreenState extends State<ExploreScreen>
   bool _isLoading = false;
   Set<String> _favoriteNewsIds = <String>{};
 
-  // 카테고리 목록 (이미지와 동일)
   final List<Map<String, dynamic>> _categories = [
     {'name': '전체', 'icon': '📰'},
     {'name': '정치', 'icon': '🏛️'},
@@ -66,8 +65,6 @@ class _ExploreScreenState extends State<ExploreScreen>
 
     try {
       final newsProvider = context.read<NewsProvider>();
-
-      // NewsProvider를 통해 뉴스 로드 (캐싱됨)
       final newsList = await newsProvider.loadNews(category: _selectedCategory);
 
       setState(() {
@@ -105,7 +102,6 @@ class _ExploreScreenState extends State<ExploreScreen>
             child: SafeArea(
               child: Column(
                 children: [
-                  // 상단 타이틀 바
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Row(
@@ -139,8 +135,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                       ],
                     ),
                   ),
-
-                  // 검색 바
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Container(
@@ -170,8 +164,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                       ),
                     ),
                   ),
-
-                  // 탭 버튼 (실시간 뉴스 / 논쟁 이슈)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Row(
@@ -186,8 +178,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                       ],
                     ),
                   ),
-
-                  // 카테고리 필터
                   SizedBox(
                     height: 42,
                     child: ListView.builder(
@@ -348,7 +338,6 @@ class _ExploreScreenState extends State<ExploreScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 상단 정보 (카테고리, 시간)
             Row(
               children: [
                 Container(
@@ -384,8 +373,6 @@ class _ExploreScreenState extends State<ExploreScreen>
               ],
             ),
             const SizedBox(height: 12),
-
-            // 제목
             Text(
               news.title,
               style: const TextStyle(
@@ -398,8 +385,6 @@ class _ExploreScreenState extends State<ExploreScreen>
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 8),
-
-            // 설명
             if (news.description.isNotEmpty)
               Text(
                 news.description,
@@ -411,8 +396,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-
-            // 이미지 (있는 경우)
             if (news.imageUrl != null && news.imageUrl!.isNotEmpty) ...[
               const SizedBox(height: 12),
               ClipRRect(
@@ -433,10 +416,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                 ),
               ),
             ],
-
             const SizedBox(height: 12),
-
-            // 하단 통계
             Row(
               children: [
                 Icon(
@@ -488,7 +468,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                     size: 20,
                     color: isFavorite ? AppColors.primaryColor : Colors.grey.shade400,
                   ),
-                  onPressed: () => _toggleFavorite(newsId),
+                  onPressed: () => _toggleFavorite(news),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
@@ -500,7 +480,9 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
-  Future<void> _toggleFavorite(String newsUrl) async {
+  Future<void> _toggleFavorite(AutoCollectedNews news) async {
+    final newsUrl = news.url;
+
     try {
       if (_favoriteNewsIds.contains(newsUrl)) {
         await _firestoreService.removeFavorite(newsUrl);
@@ -522,23 +504,25 @@ class _ExploreScreenState extends State<ExploreScreen>
           return;
         }
 
-        // NewsProvider에서 뉴스 찾기
-        final newsProvider = context.read<NewsProvider>();
-        final currentNews = newsProvider.getNewsByUrl(newsUrl);
+        // 뉴스 메타데이터와 함께 저장
+        await _firestoreService.addFavorite(
+          newsUrl,
+          title: news.title,
+          description: news.description,
+          imageUrl: news.imageUrl,
+          source: news.source,
+          publishedAt: news.publishedAt,
+        );
 
-        if (currentNews != null) {
-          // URL만 저장 (기존 방식 유지)
-          await _firestoreService.addFavorite(newsUrl);
-          setState(() => _favoriteNewsIds.add(newsUrl));
+        setState(() => _favoriteNewsIds.add(newsUrl));
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('즐겨찾기에 추가되었습니다'),
-              backgroundColor: AppColors.successColor,
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('즐겨찾기에 추가되었습니다'),
+            backgroundColor: AppColors.successColor,
+            duration: Duration(seconds: 1),
+          ),
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -578,7 +562,6 @@ class _ExploreScreenState extends State<ExploreScreen>
   }
 }
 
-// 뉴스 상세보기 + 토론 위젯
 class NewsDetailWithDiscussion extends StatefulWidget {
   final AutoCollectedNews news;
 
