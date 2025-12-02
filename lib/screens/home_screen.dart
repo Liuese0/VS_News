@@ -47,42 +47,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final newsCommentProvider = context.read<NewsCommentProvider>();
 
-      // 1. 즐겨찾기 뉴스 로드 (메타데이터 포함)
-      final favoritesWithDetails = await _firestoreService.getUserFavoritesWithDetails();
-      _favoriteNewsUrls = favoritesWithDetails.map((f) => f['newsUrl'] as String).toSet();
+      // 1. 즐겨찾기 뉴스 + 통계 한 번에 로드 (최적화: 1-2회 쿼리)
+      final favoritesWithStats = await _firestoreService.getUserFavoritesWithStats();
+      _favoriteNewsUrls = favoritesWithStats.map((f) => f['newsUrl'] as String).toSet();
 
-      // 2. 즐겨찾기 뉴스 리스트 생성
-      _favoriteNews = [];
-      for (final favorite in favoritesWithDetails) {
-        final newsUrl = favorite['newsUrl'] as String;
-
-        // 댓글 통계 가져오기
-        final commentCount = await _firestoreService.getCommentCount(newsUrl);
-        final participantCount = await _firestoreService.getParticipantCount(newsUrl);
-
-        // 발행 시간
-        DateTime lastCommentTime = DateTime.now();
+      _favoriteNews = favoritesWithStats.map((favorite) {
         final publishedAt = favorite['publishedAt'];
+        DateTime lastCommentTime = DateTime.now();
         if (publishedAt is Timestamp) {
           lastCommentTime = publishedAt.toDate();
         }
 
-        _favoriteNews.add(NewsDiscussionItem(
-          newsUrl: newsUrl,
+        return NewsDiscussionItem(
+          newsUrl: favorite['newsUrl'] as String,
           title: favorite['title'] ?? '제목 없음',
-          participantCount: participantCount,
-          commentCount: commentCount,
+          participantCount: favorite['participantCount'] ?? 0,
+          commentCount: favorite['commentCount'] ?? 0,
           lastCommentTime: lastCommentTime,
           description: favorite['description'],
           imageUrl: favorite['imageUrl'],
           source: favorite['source'],
-        ));
-      }
+        );
+      }).toList();
 
-      // 3. 인기 뉴스 로드
-      final allNewsCache = await _firestoreService.getPopularDiscussions();
+      // 2. 인기 뉴스 로드 (1회 쿼리 - newsStats 컬렉션에서)
+      final popularData = await _firestoreService.getPopularDiscussions(limit: 20);
 
-      _popularNews = allNewsCache.map((data) {
+      _popularNews = popularData.map((data) {
         final lastCommentTime = data['lastCommentTime'];
         return NewsDiscussionItem(
           newsUrl: data['newsUrl'] ?? '',
@@ -95,16 +86,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       }).toList();
 
-      _popularNews.sort((a, b) => b.commentCount.compareTo(a.commentCount));
-      _popularNews = _popularNews.take(20).toList();
-
-      // 4. 참여한 토론 로드
+      // 3. 참여한 토론 로드 (1회 쿼리)
       await newsCommentProvider.loadParticipatedDiscussions();
       final participatedUrls = newsCommentProvider.participatedNewsUrls.toSet();
 
-      final topDiscussions = _popularNews.take(10).toList();
-
-      _participatedDiscussions = topDiscussions
+      _participatedDiscussions = _popularNews
           .where((news) => participatedUrls.contains(news.newsUrl))
           .toList();
 
@@ -116,6 +102,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       setState(() => _isLoading = false);
     }
   }
+
+
+
 
   Future<void> _onRefresh() async {
     setState(() => _isRefreshing = true);
