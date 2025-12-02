@@ -589,7 +589,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 7.5),
-      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
@@ -600,147 +599,163 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             offset: const Offset(0, 2),
           ),
         ],
-        border: (showParticipated || showFavoriteIcon)
-            ? Border(
-          left: BorderSide(
-            color: showFavoriteIcon
-                ? const Color(0xFFFFD700)
-                : const Color(0xD66B7280),
-            width: 3,
-          ),
-          top: const BorderSide(color: Color(0xFFF0F0F0)),
-          right: const BorderSide(color: Color(0xFFF0F0F0)),
-          bottom: const BorderSide(color: Color(0xFFF0F0F0)),
-        )
-            : Border.all(color: const Color(0xFFF0F0F0)),
+        border: Border.all(color: const Color(0xFFF0F0F0)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
+          // 왼쪽 강조선 (조건부)
+          if (showParticipated || showFavoriteIcon)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: Container(
+                width: 3,
+                decoration: BoxDecoration(
+                  color: showFavoriteIcon
+                      ? const Color(0xFFFFD700)
+                      : const Color(0xD66B7280),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(15),
+                    bottomLeft: Radius.circular(15),
+                  ),
+                ),
+              ),
+            ),
+
+          // 기존 컨텐츠
+          Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xD66B7280),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            news.source ?? '뉴스',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_formatDateTime(news.lastCommentTime)}',
+                          style: const TextStyle(
+                            color: Color(0xFF666666),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_selectedQuickTab == 0 && index < 3)
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: const Color(0xD66B7280),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                Text(
+                  news.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF333333),
+                    height: 1.4,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+
+                Text(
+                  news.description ?? '뉴스 내용을 확인하려면 탭하세요.',
+                  style: const TextStyle(
+                    color: Color(0xFF666666),
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        if (isNewsMode) ...[
+                          _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                          const SizedBox(width: 20),
+                          _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
+                        ] else ...[
+                          _buildStatBadge(Icons.favorite_outline, '${news.participantCount}'),
+                          const SizedBox(width: 20),
+                          _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
+                          const SizedBox(width: 20),
+                          _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                        ],
+                      ],
+                    ),
+                    GestureDetector(
+                      onTap: () => _toggleFavorite(news),
+                      child: Icon(
+                        isFavorite ? Icons.bookmark : Icons.bookmark_outline,
+                        size: 20,
+                        color: isFavorite ? const Color(0xFFFFD700) : const Color(0xFFCCCCCC),
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (showParticipated)
                   Container(
+                    margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: const Color(0xD66B7280),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      news.source ?? '뉴스',
-                      style: const TextStyle(
+                    child: const Text(
+                      '참여함',
+                      style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${_formatDateTime(news.lastCommentTime)}',
-                    style: const TextStyle(
-                      color: Color(0xFF666666),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-              if (_selectedQuickTab == 0 && index < 3)
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: const Color(0xD66B7280),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${index + 1}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          Text(
-            news.title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF333333),
-              height: 1.4,
+              ],
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
-
-          Text(
-            news.description ?? '뉴스 내용을 확인하려면 탭하세요.',
-            style: const TextStyle(
-              color: Color(0xFF666666),
-              fontSize: 14,
-              height: 1.4,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  if (isNewsMode) ...[
-                    _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
-                    const SizedBox(width: 20),
-                    _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
-                  ] else ...[
-                    _buildStatBadge(Icons.favorite_outline, '${news.participantCount}'),
-                    const SizedBox(width: 20),
-                    _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
-                    const SizedBox(width: 20),
-                    _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
-                  ],
-                ],
-              ),
-              GestureDetector(
-                onTap: () => _toggleFavorite(news),
-                child: Icon(
-                  isFavorite ? Icons.bookmark : Icons.bookmark_outline,
-                  size: 20,
-                  color: isFavorite ? const Color(0xFFFFD700) : const Color(0xFFCCCCCC),
-                ),
-              ),
-            ],
-          ),
-
-          if (showParticipated)
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xD66B7280),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                '참여함',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
         ],
       ),
     );
