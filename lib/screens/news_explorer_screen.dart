@@ -437,7 +437,7 @@ class _ExploreScreenState extends State<ExploreScreen>
           ),
           const SizedBox(height: 8),
           const Text(
-            '다른 카테고리를 선택하거나 새로고침해보세요',
+            '다른 카테고리를 선택하거나 새로고침해주세요',
             style: TextStyle(
               fontSize: 14,
               color: Color(0xFF666666),
