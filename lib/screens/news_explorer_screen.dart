@@ -33,14 +33,14 @@ class _ExploreScreenState extends State<ExploreScreen>
   double _lastScrollOffset = 0.0;
   bool _isAppBarVisible = true;
 
-  String _selectedCategory = '전체';
+  String _selectedCategory = '인기';
   int _selectedTab = 0;
   List<AutoCollectedNews> _newsList = [];
   bool _isLoading = false;
   Set<String> _favoriteNewsIds = <String>{};
 
   final List<Map<String, dynamic>> _categories = [
-    {'name': '전체', 'icon': '📰'},
+    {'name': '인기', 'icon': '🔥'},
     {'name': '정치', 'icon': '🏛️'},
     {'name': '경제', 'icon': '💰'},
     {'name': '사회', 'icon': '👥'},
@@ -123,13 +123,19 @@ class _ExploreScreenState extends State<ExploreScreen>
     setState(() => _isLoading = true);
 
     try {
-      final newsProvider = context.read<NewsProvider>();
-      final newsList = await newsProvider.loadNews(category: _selectedCategory);
+      if (_selectedCategory == '인기') {
+        // 인기 뉴스 로드 (댓글 수 기반)
+        await _loadPopularNews();
+      } else {
+        // 일반 카테고리 뉴스 로드
+        final newsProvider = context.read<NewsProvider>();
+        final newsList = await newsProvider.loadNews(category: _selectedCategory);
 
-      if (mounted) {
-        setState(() {
-          _newsList = newsList;
-        });
+        if (mounted) {
+          setState(() {
+            _newsList = newsList;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -143,6 +149,71 @@ class _ExploreScreenState extends State<ExploreScreen>
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // 인기 뉴스 로드 (댓글 수 상위 10개)
+  Future<void> _loadPopularNews() async {
+    try {
+      // 1. Firestore에서 댓글 수 기준 상위 10개 뉴스 URL 가져오기
+      final popularDiscussions = await _firestoreService.getPopularDiscussions(limit: 10);
+
+      if (popularDiscussions.isEmpty) {
+        // 인기 뉴스가 없으면 일반 뉴스 표시
+        final newsProvider = context.read<NewsProvider>();
+        final newsList = await newsProvider.loadNews(category: '전체');
+
+        if (mounted) {
+          setState(() {
+            _newsList = newsList.take(10).toList();
+          });
+        }
+        return;
+      }
+
+      // 2. 각 뉴스 URL에 대한 상세 정보 가져오기
+      final newsProvider = context.read<NewsProvider>();
+      List<AutoCollectedNews> popularNewsList = [];
+
+      for (var discussion in popularDiscussions) {
+        final newsUrl = discussion['newsUrl'] as String;
+
+        // 캐시에서 뉴스 찾기
+        var news = newsProvider.getNewsByUrl(newsUrl);
+
+        // 캐시에 없으면 스킵 (또는 기본 정보로 표시)
+        if (news == null) {
+          // 기본 정보로 뉴스 객체 생성
+          news = AutoCollectedNews(
+            title: discussion['title'] ?? '제목 없음',
+            description: '자세한 내용을 보려면 클릭하세요',
+            url: newsUrl,
+            source: '뉴스 소스',
+            publishedAt: DateTime.now(),
+            autoCategory: '인기',
+            autoTags: [],
+          );
+        }
+
+        popularNewsList.add(news);
+      }
+
+      if (mounted) {
+        setState(() {
+          _newsList = popularNewsList;
+        });
+      }
+    } catch (e) {
+      print('인기 뉴스 로드 실패: $e');
+      // 실패 시 일반 뉴스 표시
+      final newsProvider = context.read<NewsProvider>();
+      final newsList = await newsProvider.loadNews(category: '전체');
+
+      if (mounted) {
+        setState(() {
+          _newsList = newsList.take(10).toList();
+        });
       }
     }
   }
@@ -427,18 +498,20 @@ class _ExploreScreenState extends State<ExploreScreen>
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            '뉴스가 없습니다',
-            style: TextStyle(
+          Text(
+            _selectedCategory == '인기' ? '아직 인기 뉴스가 없습니다' : '뉴스가 없습니다',
+            style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Color(0xFF333333),
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            '다른 카테고리를 선택하거나 새로고침해주세요',
-            style: TextStyle(
+          Text(
+            _selectedCategory == '인기'
+                ? '댓글이 달린 뉴스가 아직 없습니다'
+                : '다른 카테고리를 선택하거나 새로고침해주세요',
+            style: const TextStyle(
               fontSize: 14,
               color: Color(0xFF666666),
             ),
@@ -536,9 +609,9 @@ class _ExploreScreenState extends State<ExploreScreen>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
-                              '🔥',
-                              style: TextStyle(fontSize: 11),
+                            Text(
+                              _selectedCategory == '인기' ? '🔥' : '🔥',
+                              style: const TextStyle(fontSize: 11),
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -572,6 +645,43 @@ class _ExploreScreenState extends State<ExploreScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
+
+                  // 인기 순위 표시 (인기 카테고리일 때만)
+                  if (_selectedCategory == '인기' && index < 3)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: index == 0
+                            ? const Color(0xFFFFD700).withOpacity(0.2)
+                            : index == 1
+                            ? const Color(0xFFC0C0C0).withOpacity(0.2)
+                            : const Color(0xFFCD7F32).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            index == 0 ? '🥇' : index == 1 ? '🥈' : '🥉',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${index + 1}위',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: index == 0
+                                  ? const Color(0xFFFFD700)
+                                  : index == 1
+                                  ? const Color(0xFF808080)
+                                  : const Color(0xFFCD7F32),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
                   Text(
                     news.title,
@@ -609,6 +719,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                       _buildStatBadge(
                         Icons.chat_bubble_outline,
                         '$commentCount',
+                        isHighlight: _selectedCategory == '인기',
                       ),
                       const SizedBox(width: 16),
                       _buildStatBadge(
@@ -646,17 +757,21 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
-  Widget _buildStatBadge(IconData icon, String value) {
+  Widget _buildStatBadge(IconData icon, String value, {bool isHighlight = false}) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: const Color(0xFF888888)),
+        Icon(
+          icon,
+          size: 16,
+          color: isHighlight ? const Color(0xD66B7280) : const Color(0xFF888888),
+        ),
         const SizedBox(width: 4),
         Text(
           value,
-          style: const TextStyle(
-            color: Color(0xFF666666),
+          style: TextStyle(
+            color: isHighlight ? const Color(0xD66B7280) : const Color(0xFF666666),
             fontSize: 13,
-            fontWeight: FontWeight.w500,
+            fontWeight: isHighlight ? FontWeight.bold : FontWeight.w500,
           ),
         ),
       ],
