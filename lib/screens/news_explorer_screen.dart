@@ -25,8 +25,16 @@ class _ExploreScreenState extends State<ExploreScreen>
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  // AppBar 애니메이션 관련
+  late final AnimationController _appBarAnimationController;
+  late final Animation<Offset> _appBarSlideAnimation;
+  late final Animation<double> _paddingAnimation;
+
+  double _lastScrollOffset = 0.0;
+  bool _isAppBarVisible = true;
+
   String _selectedCategory = '전체';
-  int _selectedTab = 0; // 0: 실시간 뉴스, 1: 논쟁 이슈
+  int _selectedTab = 0;
   List<AutoCollectedNews> _newsList = [];
   bool _isLoading = false;
   Set<String> _favoriteNewsIds = <String>{};
@@ -43,18 +51,67 @@ class _ExploreScreenState extends State<ExploreScreen>
   @override
   void initState() {
     super.initState();
+
+    // AppBar 애니메이션 컨트롤러 초기화
+    _appBarAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    _appBarSlideAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0, -1),
+    ).animate(CurvedAnimation(
+      parent: _appBarAnimationController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Padding 애니메이션 (AppBar 높이만큼 줄어듦)
+    _paddingAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _appBarAnimationController,
+      curve: Curves.easeInOut,
+    ));
+
+    // 스크롤 리스너 추가
+    _scrollController.addListener(_handleScroll);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFavorites();
       _loadNews();
     });
   }
 
+  void _handleScroll() {
+    final currentScrollOffset = _scrollController.offset;
+    const scrollThreshold = 50.0;
+
+    if (currentScrollOffset > _lastScrollOffset &&
+        currentScrollOffset > scrollThreshold) {
+      if (_isAppBarVisible) {
+        setState(() => _isAppBarVisible = false);
+        _appBarAnimationController.forward();
+      }
+    } else if (currentScrollOffset < _lastScrollOffset) {
+      if (!_isAppBarVisible) {
+        setState(() => _isAppBarVisible = true);
+        _appBarAnimationController.reverse();
+      }
+    }
+
+    _lastScrollOffset = currentScrollOffset;
+  }
+
   Future<void> _loadFavorites() async {
     try {
       final favorites = await _firestoreService.getUserFavorites();
-      setState(() {
-        _favoriteNewsIds = favorites.toSet();
-      });
+      if (mounted) {
+        setState(() {
+          _favoriteNewsIds = favorites.toSet();
+        });
+      }
     } catch (e) {
       print('즐겨찾기 로드 실패: $e');
     }
@@ -69,9 +126,11 @@ class _ExploreScreenState extends State<ExploreScreen>
       final newsProvider = context.read<NewsProvider>();
       final newsList = await newsProvider.loadNews(category: _selectedCategory);
 
-      setState(() {
-        _newsList = newsList;
-      });
+      if (mounted) {
+        setState(() {
+          _newsList = newsList;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -82,12 +141,18 @@ class _ExploreScreenState extends State<ExploreScreen>
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+    const appBarContentHeight = 320.0;
+    final totalAppBarHeight = topPadding + appBarContentHeight;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -97,10 +162,19 @@ class _ExploreScreenState extends State<ExploreScreen>
         backgroundColor: Colors.white,
         body: SafeArea(
           top: false,
-          child: Column(
+          child: Stack(
             children: [
-              _buildHeader(),
-              Expanded(
+              // 메인 컨텐츠 (애니메이션되는 padding)
+              AnimatedBuilder(
+                animation: _paddingAnimation,
+                builder: (context, child) {
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      top: totalAppBarHeight * _paddingAnimation.value,
+                    ),
+                    child: child,
+                  );
+                },
                 child: _isLoading
                     ? const Center(
                   child: CircularProgressIndicator(
@@ -109,6 +183,12 @@ class _ExploreScreenState extends State<ExploreScreen>
                 )
                     : _buildNewsList(),
               ),
+
+              // 애니메이션되는 AppBar
+              SlideTransition(
+                position: _appBarSlideAnimation,
+                child: _buildAnimatedAppBar(),
+              ),
             ],
           ),
         ),
@@ -116,7 +196,7 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildAnimatedAppBar() {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 10,
@@ -132,6 +212,7 @@ class _ExploreScreenState extends State<ExploreScreen>
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // 상단 타이틀 바
           Row(
@@ -406,7 +487,6 @@ class _ExploreScreenState extends State<ExploreScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 이미지 (있는 경우)
             if (news.imageUrl != null && news.imageUrl!.isNotEmpty)
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(
@@ -442,7 +522,6 @@ class _ExploreScreenState extends State<ExploreScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 상단 메타 정보
                   Row(
                     children: [
                       Container(
@@ -494,7 +573,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                   ),
                   const SizedBox(height: 12),
 
-                  // 제목
                   Text(
                     news.title,
                     style: const TextStyle(
@@ -508,7 +586,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                   ),
                   const SizedBox(height: 8),
 
-                  // 설명
                   if (news.description.isNotEmpty)
                     Text(
                       news.description,
@@ -522,7 +599,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                     ),
                   const SizedBox(height: 15),
 
-                  // 하단 통계 및 액션
                   Row(
                     children: [
                       _buildStatBadge(
@@ -593,13 +669,15 @@ class _ExploreScreenState extends State<ExploreScreen>
     try {
       if (_favoriteNewsIds.contains(newsUrl)) {
         await _firestoreService.removeFavorite(newsUrl);
-        setState(() => _favoriteNewsIds.remove(newsUrl));
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('즐겨찾기에서 제거되었습니다'),
-            duration: Duration(seconds: 1),
-          ),
-        );
+        if (mounted) {
+          setState(() => _favoriteNewsIds.remove(newsUrl));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('즐겨찾기에서 제거되었습니다'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
       } else {
         if (_favoriteNewsIds.length >= 100) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -620,23 +698,26 @@ class _ExploreScreenState extends State<ExploreScreen>
           publishedAt: news.publishedAt,
         );
 
-        setState(() => _favoriteNewsIds.add(newsUrl));
-
+        if (mounted) {
+          setState(() => _favoriteNewsIds.add(newsUrl));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('즐겨찾기에 추가되었습니다'),
+              backgroundColor: AppColors.successColor,
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('즐겨찾기에 추가되었습니다'),
-            backgroundColor: AppColors.successColor,
-            duration: Duration(seconds: 1),
+          SnackBar(
+            content: Text('오류 발생: $e'),
+            backgroundColor: AppColors.errorColor,
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('오류 발생: $e'),
-          backgroundColor: AppColors.errorColor,
-        ),
-      );
     }
   }
 
@@ -664,6 +745,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();
+    _appBarAnimationController.dispose();
     super.dispose();
   }
 }
