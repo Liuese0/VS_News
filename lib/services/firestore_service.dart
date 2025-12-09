@@ -136,6 +136,137 @@ class FirestoreService {
     return getUserFavoritesWithStats();
   }
 
+  // ========== 투표 관리 ==========
+
+  /// 투표하기 (찬성/반대)
+  Future<void> vote({
+    required String newsUrl,
+    required String stance, // 'pro' or 'con'
+    String? newsTitle,
+    String? newsDescription,
+    String? newsImageUrl,
+    String? newsSource,
+  }) async {
+    final uid = await _authService.getCurrentUid();
+    final newsStatsId = _generateNewsStatsId(newsUrl);
+    final voteId = _generateVoteId(uid, newsUrl);
+
+    await _firestore.runTransaction((transaction) async {
+      // 1. 기존 투표 확인
+      final voteRef = _firestore.collection('votes').doc(voteId);
+      final voteDoc = await transaction.get(voteRef);
+
+      final statsRef = _firestore.collection('newsStats').doc(newsStatsId);
+      final statsDoc = await transaction.get(statsRef);
+
+      if (voteDoc.exists) {
+        // 이미 투표한 경우 - 입장 변경
+        final oldStance = voteDoc.data()!['stance'] as String;
+
+        if (oldStance != stance) {
+          // 입장이 바뀐 경우에만 업데이트
+          transaction.update(voteRef, {
+            'stance': stance,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          // 통계 업데이트
+          if (statsDoc.exists) {
+            final data = statsDoc.data()!;
+            final proVotes = (data['proVotes'] ?? 0) as int;
+            final conVotes = (data['conVotes'] ?? 0) as int;
+
+            transaction.update(statsRef, {
+              'proVotes': stance == 'pro' ? proVotes + 1 : proVotes - 1,
+              'conVotes': stance == 'con' ? conVotes + 1 : conVotes - 1,
+            });
+          }
+        }
+      } else {
+        // 새로운 투표
+        transaction.set(voteRef, {
+          'userId': uid,
+          'newsUrl': newsUrl,
+          'stance': stance,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        // 통계 업데이트
+        if (statsDoc.exists) {
+          final data = statsDoc.data()!;
+          final participants = List<String>.from(data['participants'] ?? []);
+          final isNewParticipant = !participants.contains(uid);
+
+          transaction.update(statsRef, {
+            if (stance == 'pro') 'proVotes': FieldValue.increment(1),
+            if (stance == 'con') 'conVotes': FieldValue.increment(1),
+            if (isNewParticipant) 'participants': FieldValue.arrayUnion([uid]),
+            if (isNewParticipant) 'participantCount': FieldValue.increment(1),
+            if (newsTitle != null && (data['title'] == null || data['title'] == '뉴스 제목'))
+              'title': newsTitle,
+            if (newsDescription != null && (data['description'] == null || data['description'] == ''))
+              'description': newsDescription,
+            if (newsImageUrl != null && data['imageUrl'] == null)
+              'imageUrl': newsImageUrl,
+            if (newsSource != null && (data['source'] == null || data['source'] == '알 수 없음'))
+              'source': newsSource,
+          });
+        } else {
+          // 새로운 뉴스 통계 생성
+          transaction.set(statsRef, {
+            'newsUrl': newsUrl,
+            'proVotes': stance == 'pro' ? 1 : 0,
+            'conVotes': stance == 'con' ? 1 : 0,
+            'commentCount': 0,
+            'participantCount': 1,
+            'participants': [uid],
+            'createdAt': FieldValue.serverTimestamp(),
+            'title': newsTitle ?? '뉴스 제목',
+            'description': newsDescription ?? '',
+            'imageUrl': newsImageUrl,
+            'source': newsSource ?? '알 수 없음',
+          });
+        }
+      }
+    });
+
+    // 로컬 캐시 무효화
+    _statsCache.remove(newsUrl);
+  }
+
+  /// 사용자의 투표 가져오기
+  Future<String?> getUserVote(String newsUrl) async {
+    final uid = await _authService.getCurrentUid();
+    final voteId = _generateVoteId(uid, newsUrl);
+
+    final doc = await _firestore.collection('votes').doc(voteId).get();
+
+    if (doc.exists) {
+      return doc.data()!['stance'] as String;
+    }
+    return null;
+  }
+
+  /// 투표 통계 가져오기
+  Future<Map<String, int>> getVoteStats(String newsUrl) async {
+    final statsId = _generateNewsStatsId(newsUrl);
+    final doc = await _firestore.collection('newsStats').doc(statsId).get();
+
+    if (doc.exists) {
+      final data = doc.data()!;
+      return {
+        'pro': data['proVotes'] ?? 0,
+        'con': data['conVotes'] ?? 0,
+      };
+    }
+
+    return {'pro': 0, 'con': 0};
+  }
+
+  String _generateVoteId(String uid, String newsUrl) {
+    return '${uid}_${newsUrl.hashCode.abs()}';
+  }
+
   // ========== 댓글 관리 ==========
 
   /// 댓글 작성 (통계 비정규화 포함)

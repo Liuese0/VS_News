@@ -867,6 +867,8 @@ class _ExploreScreenState extends State<ExploreScreen>
 
 // ========== 뉴스 상세 + 토론 바텀시트 ==========
 
+// ========== 뉴스 상세 + 토론 바텀시트 ==========
+
 class NewsDetailWithDiscussion extends StatefulWidget {
   final AutoCollectedNews news;
 
@@ -881,13 +883,25 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   final ScrollController _scrollController = ScrollController();
 
   List<NewsComment> _comments = [];
-  String _selectedStance = 'pro';
+  String? _userVote; // 사용자의 투표 (null, 'pro', 'con')
+  Map<String, int> _voteStats = {'pro': 0, 'con': 0};
+
+  bool _isSubmittingVote = false;
   bool _isSubmittingComment = false;
+  bool _showCommentInput = false;
 
   @override
   void initState() {
     super.initState();
-    _loadComments();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    await Future.wait([
+      _loadComments(),
+      _loadUserVote(),
+      _loadVoteStats(),
+    ]);
   }
 
   Future<void> _loadComments() async {
@@ -896,6 +910,25 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
     setState(() {
       _comments = newsCommentProvider.getComments(widget.news.url);
+    });
+  }
+
+  Future<void> _loadUserVote() async {
+    final firestoreService = FirestoreService();
+    final vote = await firestoreService.getUserVote(widget.news.url);
+
+    setState(() {
+      _userVote = vote;
+      _showCommentInput = vote != null; // 투표했으면 댓글 입력창 표시
+    });
+  }
+
+  Future<void> _loadVoteStats() async {
+    final firestoreService = FirestoreService();
+    final stats = await firestoreService.getVoteStats(widget.news.url);
+
+    setState(() {
+      _voteStats = stats;
     });
   }
 
@@ -932,6 +965,11 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildNewsContent(),
+                      Container(
+                        height: 8,
+                        color: const Color(0xFFF5F5F5),
+                      ),
+                      _buildVotingSection(),
                       Container(
                         height: 8,
                         color: const Color(0xFFF5F5F5),
@@ -1051,6 +1089,287 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
     );
   }
 
+  Widget _buildVotingSection() {
+    final totalVotes = _voteStats['pro']! + _voteStats['con']!;
+    final proPercentage = totalVotes > 0
+        ? (_voteStats['pro']! / totalVotes * 100).round()
+        : 0;
+    final conPercentage = totalVotes > 0
+        ? (_voteStats['con']! / totalVotes * 100).round()
+        : 0;
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 섹션 헤더
+          Row(
+            children: [
+              const Icon(
+                Icons.how_to_vote_outlined,
+                color: Color(0xD66B7280),
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                '이 이슈에 대한 당신의 의견은?',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF333333),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // 투표 통계 (이미 투표한 경우)
+          if (_userVote != null) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F9FA),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE8E8E8)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        color: Color(0xD66B7280),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${_userVote == 'pro' ? '찬성' : '반대'}에 투표하셨습니다',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF333333),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '총 $totalVotes표',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF666666),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 투표 바
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: _voteStats['pro']! > 0 ? _voteStats['pro']! : 1,
+                        child: Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: const Color(0xD66B7280),
+                            borderRadius: totalVotes == 0 || _voteStats['con']! == 0
+                                ? BorderRadius.circular(4)
+                                : const BorderRadius.only(
+                              topLeft: Radius.circular(4),
+                              bottomLeft: Radius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_voteStats['con']! > 0)
+                        Expanded(
+                          flex: _voteStats['con']!,
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF888888),
+                              borderRadius: _voteStats['pro']! == 0
+                                  ? BorderRadius.circular(4)
+                                  : const BorderRadius.only(
+                                topRight: Radius.circular(4),
+                                bottomRight: Radius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 퍼센트 표시
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: const BoxDecoration(
+                              color: Color(0xD66B7280),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '찬성 $proPercentage% (${_voteStats['pro']}표)',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF666666),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF888888),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '반대 $conPercentage% (${_voteStats['con']}표)',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF666666),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 입장 변경 버튼
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showChangeVoteDialog(),
+                icon: const Icon(Icons.swap_horiz, size: 18),
+                label: const Text('입장 변경하기'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF666666),
+                  side: const BorderSide(color: Color(0xFFDDDDDD)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            // 투표 버튼 (아직 투표하지 않은 경우)
+            Row(
+              children: [
+                Expanded(
+                  child: _buildVoteButton(
+                    label: '찬성',
+                    icon: Icons.thumb_up_outlined,
+                    stance: 'pro',
+                    color: const Color(0xD66B7280),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildVoteButton(
+                    label: '반대',
+                    icon: Icons.thumb_down_outlined,
+                    stance: 'con',
+                    color: const Color(0xFF888888),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF9E6),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFFE082)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: Color(0xFFF57C00),
+                    size: 18,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '투표 후 댓글을 작성할 수 있습니다',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVoteButton({
+    required String label,
+    required IconData icon,
+    required String stance,
+    required Color color,
+  }) {
+    return ElevatedButton(
+      onPressed: _isSubmittingVote ? null : () => _submitVote(stance),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 2,
+      ),
+      child: _isSubmittingVote
+          ? const SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Colors.white,
+        ),
+      )
+          : Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDiscussionSection() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -1094,9 +1413,11 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           ),
           const SizedBox(height: 20),
 
-          // 댓글 입력
-          _buildCommentInput(),
-          const SizedBox(height: 24),
+          // 댓글 입력 (투표한 경우에만 표시)
+          if (_showCommentInput) ...[
+            _buildCommentInput(),
+            const SizedBox(height: 24),
+          ],
 
           // 댓글 목록
           if (_comments.isEmpty)
@@ -1109,6 +1430,11 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 
   Widget _buildCommentInput() {
+    final stanceLabel = _userVote == 'pro' ? '찬성' : '반대';
+    final stanceColor = _userVote == 'pro'
+        ? const Color(0xD66B7280)
+        : const Color(0xFF888888);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1117,94 +1443,37 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         border: Border.all(color: const Color(0xFFE8E8E8)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 찬반 선택
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedStance = 'pro'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      color: _selectedStance == 'pro'
-                          ? const Color(0xD66B7280)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _selectedStance == 'pro'
-                            ? const Color(0xD66B7280)
-                            : const Color(0xFFDDDDDD),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.thumb_up_outlined,
-                          size: 18,
-                          color: _selectedStance == 'pro'
-                              ? Colors.white
-                              : Colors.grey.shade600,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '찬성',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: _selectedStance == 'pro'
-                                ? Colors.white
-                                : Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
+          // 입장 표시
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: stanceColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: stanceColor.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _userVote == 'pro'
+                      ? Icons.thumb_up
+                      : Icons.thumb_down,
+                  size: 16,
+                  color: stanceColor,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$stanceLabel 의견',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: stanceColor,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedStance = 'con'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      color: _selectedStance == 'con'
-                          ? const Color(0xFF888888)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _selectedStance == 'con'
-                            ? const Color(0xFF888888)
-                            : const Color(0xFFDDDDDD),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.thumb_down_outlined,
-                          size: 18,
-                          color: _selectedStance == 'con'
-                              ? Colors.white
-                              : Colors.grey.shade600,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '반대',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: _selectedStance == 'con'
-                                ? Colors.white
-                                : Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -1213,7 +1482,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             controller: _commentController,
             maxLines: 3,
             decoration: InputDecoration(
-              hintText: '의견을 작성해주세요...',
+              hintText: '$stanceLabel 의견을 작성해주세요...',
               hintStyle: TextStyle(color: Colors.grey.shade400),
               filled: true,
               fillColor: Colors.white,
@@ -1240,7 +1509,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             child: ElevatedButton(
               onPressed: _isSubmittingComment ? null : _submitComment,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xD66B7280),
+                backgroundColor: stanceColor,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1256,9 +1525,9 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   color: Colors.white,
                 ),
               )
-                  : Text(
-                _selectedStance == 'pro' ? '찬성 의견 작성' : '반대 의견 작성',
-                style: const TextStyle(
+                  : const Text(
+                '의견 작성',
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
                 ),
@@ -1382,8 +1651,75 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
     );
   }
 
-// lib/screens/news_explorer_screen.dart
-// _NewsDetailWithDiscussionState 클래스의 _submitComment 메서드
+  Future<void> _submitVote(String stance) async {
+    setState(() => _isSubmittingVote = true);
+
+    try {
+      final firestoreService = FirestoreService();
+
+      await firestoreService.vote(
+        newsUrl: widget.news.url,
+        stance: stance,
+        newsTitle: widget.news.title,
+        newsDescription: widget.news.description,
+        newsImageUrl: widget.news.imageUrl,
+        newsSource: widget.news.source,
+      );
+
+      await _loadData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${stance == 'pro' ? '찬성' : '반대'}에 투표했습니다'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('투표 실패: $e'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isSubmittingVote = false);
+    }
+  }
+
+  void _showChangeVoteDialog() {
+    final currentStance = _userVote == 'pro' ? '찬성' : '반대';
+    final newStance = _userVote == 'pro' ? 'con' : 'pro';
+    final newStanceLabel = newStance == 'pro' ? '찬성' : '반대';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('입장 변경'),
+        content: Text('$currentStance에서 $newStanceLabel으로 입장을 변경하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _submitVote(newStance);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xD66B7280),
+            ),
+            child: const Text('변경'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _submitComment() async {
     if (_commentController.text.trim().isEmpty) {
@@ -1403,12 +1739,11 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         id: DateTime.now().millisecondsSinceEpoch,
         newsUrl: widget.news.url,
         nickname: authProvider.nickname,
-        stance: _selectedStance,
+        stance: _userVote!, // 투표한 입장 사용
         content: _commentController.text.trim(),
         createdAt: DateTime.now(),
       );
 
-      // 뉴스 메타데이터를 포함하여 댓글 추가
       await newsCommentProvider.addComment(
         widget.news.url,
         newComment,
