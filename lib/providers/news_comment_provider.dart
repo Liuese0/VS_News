@@ -65,12 +65,23 @@ class NewsCommentProvider extends ChangeNotifier {
   }
 
   // 댓글 추가 (Firestore에 저장)
-  Future<void> addComment(String newsUrl, NewsComment comment) async {
+  Future<void> addComment(
+      String newsUrl,
+      NewsComment comment, {
+        String? newsTitle,
+        String? newsDescription,
+        String? newsImageUrl,
+        String? newsSource,
+      }) async {
     try {
       await _firestoreService.addComment(
         newsUrl: newsUrl,
         content: comment.content,
         stance: comment.stance,
+        newsTitle: newsTitle,
+        newsDescription: newsDescription,
+        newsImageUrl: newsImageUrl,
+        newsSource: newsSource,
       );
 
       // 로컬 캐시 업데이트

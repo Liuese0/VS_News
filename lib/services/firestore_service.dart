@@ -143,6 +143,10 @@ class FirestoreService {
     required String newsUrl,
     required String content,
     required String stance,
+    String? newsTitle,
+    String? newsDescription,
+    String? newsImageUrl,
+    String? newsSource,
   }) async {
     final uid = await _authService.getCurrentUid();
     final userInfo = await _authService.getUserInfo();
@@ -175,8 +179,18 @@ class FirestoreService {
           'lastCommentAt': FieldValue.serverTimestamp(),
           if (isNewParticipant) 'participants': FieldValue.arrayUnion([uid]),
           if (isNewParticipant) 'participantCount': FieldValue.increment(1),
+          // 뉴스 메타데이터가 제공되면 업데이트 (누락된 경우 보완)
+          if (newsTitle != null && (data['title'] == null || data['title'] == '뉴스 제목'))
+            'title': newsTitle,
+          if (newsDescription != null && (data['description'] == null || data['description'] == ''))
+            'description': newsDescription,
+          if (newsImageUrl != null && data['imageUrl'] == null)
+            'imageUrl': newsImageUrl,
+          if (newsSource != null && (data['source'] == null || data['source'] == '알 수 없음'))
+            'source': newsSource,
         });
       } else {
+        // 새로운 뉴스 통계 생성 시 메타데이터 포함
         transaction.set(statsRef, {
           'newsUrl': newsUrl,
           'commentCount': 1,
@@ -184,6 +198,10 @@ class FirestoreService {
           'participants': [uid],
           'lastCommentAt': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
+          'title': newsTitle ?? '뉴스 제목',
+          'description': newsDescription ?? '',
+          'imageUrl': newsImageUrl,
+          'source': newsSource ?? '알 수 없음',
         });
       }
 
@@ -334,7 +352,10 @@ class FirestoreService {
         'commentCount': data['commentCount'] ?? 0,
         'participantCount': data['participantCount'] ?? 0,
         'lastCommentTime': data['lastCommentAt'],
-        'title': data['title'] ?? '뉴스 제목',
+        'title': data['title'] ?? '제목 없음',
+        'description': data['description'] ?? '',
+        'imageUrl': data['imageUrl'],
+        'source': data['source'] ?? '뉴스',
       };
     }).toList();
   }

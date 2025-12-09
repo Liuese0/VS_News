@@ -1382,6 +1382,9 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
     );
   }
 
+// lib/screens/news_explorer_screen.dart
+// _NewsDetailWithDiscussionState 클래스의 _submitComment 메서드
+
   Future<void> _submitComment() async {
     if (_commentController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1405,7 +1408,16 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         createdAt: DateTime.now(),
       );
 
-      await newsCommentProvider.addComment(widget.news.url, newComment);
+      // 뉴스 메타데이터를 포함하여 댓글 추가
+      await newsCommentProvider.addComment(
+        widget.news.url,
+        newComment,
+        newsTitle: widget.news.title,
+        newsDescription: widget.news.description,
+        newsImageUrl: widget.news.imageUrl,
+        newsSource: widget.news.source,
+      );
+
       setState(() => _commentController.clear());
       await _loadComments();
 

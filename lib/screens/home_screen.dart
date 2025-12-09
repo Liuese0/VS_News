@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       }).toList();
 
-      // 2. 인기 뉴스 로드 (1회 쿼리 - newsStats 컬렉션에서)
+      // 2. 인기 뉴스 로드 (newsStats에서 title, description 포함)
       final popularData = await _firestoreService.getPopularDiscussions(limit: 20);
 
       _popularNews = popularData.map((data) {
@@ -83,6 +83,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           lastCommentTime: lastCommentTime is Timestamp
               ? lastCommentTime.toDate()
               : DateTime.now(),
+          description: data['description'] ?? '자세한 내용을 보려면 탭하세요',
+          imageUrl: data['imageUrl'],
+          source: data['source'] ?? '뉴스',
         );
       }).toList();
 
@@ -102,6 +105,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       setState(() => _isLoading = false);
     }
   }
+
+
 
 
 
