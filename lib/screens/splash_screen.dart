@@ -11,19 +11,19 @@ class SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         if (authProvider.isInitialized) {
-          // 초기화 완료
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (authProvider.hasExistingAccount) {
-              // 기존 계정 있음 → 홈으로
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (_) => const HomeScreen()),
               );
             } else {
-              // 기존 계정 없음 → Welcome 화면으로
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (_) => const WelcomeScreen()),
@@ -39,44 +39,48 @@ class SplashScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(screenWidth * 0.05),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.article_outlined,
-                    size: 80,
+                    size: screenWidth * 0.2,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 32),
-                const Text(
+                SizedBox(height: screenHeight * 0.04),
+                Text(
                   AppStrings.appName,
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: screenWidth * 0.08,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                SizedBox(height: screenHeight * 0.01),
+                Text(
                   '뜨거운 이슈, 당신의 선택은?',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: screenWidth * 0.04,
                     color: Colors.white70,
                   ),
                 ),
-                const SizedBox(height: 48),
-                const CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  strokeWidth: 3,
+                SizedBox(height: screenHeight * 0.06),
+                SizedBox(
+                  width: screenWidth * 0.08,
+                  height: screenWidth * 0.08,
+                  child: const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    strokeWidth: 3,
+                  ),
                 ),
-                const SizedBox(height: 16),
-                const Text(
+                SizedBox(height: screenHeight * 0.02),
+                Text(
                   '초기화 중...',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: screenWidth * 0.035,
                     color: Colors.white70,
                   ),
                 ),

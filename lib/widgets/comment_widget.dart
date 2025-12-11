@@ -14,9 +14,11 @@ class CommentWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: AppDimensions.margin),
-      padding: const EdgeInsets.all(AppDimensions.padding),
+      margin: EdgeInsets.only(bottom: screenWidth * 0.02),
+      padding: EdgeInsets.all(screenWidth * 0.04),
       decoration: BoxDecoration(
         color: AppColors.cardColor,
         borderRadius: BorderRadius.circular(AppDimensions.borderRadius),
@@ -41,9 +43,9 @@ class CommentWidget extends StatelessWidget {
             children: [
               // 찬반 뱃지
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.02,
+                  vertical: screenWidth * 0.01,
                 ),
                 decoration: BoxDecoration(
                   color: comment.isPro
@@ -54,19 +56,23 @@ class CommentWidget extends StatelessWidget {
                 child: Text(
                   comment.isPro ? '찬성' : '반대',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: screenWidth * 0.03,
                     color: comment.isPro ? Colors.blue : Colors.red,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: screenWidth * 0.02),
               // 닉네임
-              Text(
-                comment.nickname,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              Flexible(
+                child: Text(
+                  comment.nickname,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    fontSize: screenWidth * 0.035,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const Spacer(),
@@ -74,18 +80,18 @@ class CommentWidget extends StatelessWidget {
               Text(
                 DateFormat('MM/dd HH:mm').format(comment.createdAt),
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: screenWidth * 0.03,
                   color: AppColors.textSecondary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: screenWidth * 0.02),
           // 댓글 내용
           Text(
             comment.content,
-            style: const TextStyle(
-              fontSize: 14,
+            style: TextStyle(
+              fontSize: screenWidth * 0.035,
               color: AppColors.textPrimary,
               height: 1.4,
             ),

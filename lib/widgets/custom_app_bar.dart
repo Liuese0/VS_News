@@ -20,13 +20,17 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return AppBar(
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.bold,
           color: AppColors.textPrimary,
+          fontSize: screenWidth * 0.045,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
       centerTitle: centerTitle,
       leading: leading,
@@ -61,6 +65,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize => Size.fromHeight(
       kToolbarHeight +
           (bottom?.preferredSize.height ?? 0) +
-          1 // border height
+          1
   );
 }

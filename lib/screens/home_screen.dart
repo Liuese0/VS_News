@@ -47,7 +47,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final newsCommentProvider = context.read<NewsCommentProvider>();
 
-      // 1. 즐겨찾기 뉴스 + 통계 한 번에 로드 (최적화: 1-2회 쿼리)
       final favoritesWithStats = await _firestoreService.getUserFavoritesWithStats();
       _favoriteNewsUrls = favoritesWithStats.map((f) => f['newsUrl'] as String).toSet();
 
@@ -70,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       }).toList();
 
-      // 2. 인기 뉴스 로드 (newsStats에서 title, description 포함)
       final popularData = await _firestoreService.getPopularDiscussions(limit: 20);
 
       _popularNews = popularData.map((data) {
@@ -89,7 +87,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       }).toList();
 
-      // 3. 참여한 토론 로드 (1회 쿼리)
       await newsCommentProvider.loadParticipatedDiscussions();
       final participatedUrls = newsCommentProvider.participatedNewsUrls.toSet();
 
@@ -106,11 +103,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-
-
-
-
-
   Future<void> _onRefresh() async {
     setState(() => _isRefreshing = true);
     await _loadData();
@@ -120,6 +112,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -151,11 +145,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildHeader(BuildContext context, AuthProvider authProvider) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 10,
-        left: 20,
-        right: 20,
+        left: screenWidth * 0.05,
+        right: screenWidth * 0.05,
         bottom: 15,
       ),
       decoration: const BoxDecoration(
@@ -168,33 +164,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
+          Flexible(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(screenWidth * 0.015),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.article,
+                    color: const Color(0xD66B7280),
+                    size: screenWidth * 0.05,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.article,
-                  color: Color(0xD66B7280),
-                  size: 20,
+                SizedBox(width: screenWidth * 0.02),
+                Flexible(
+                  child: Text(
+                    '뉴스 디베이터',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.06,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                '뉴스 디베이터',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
           IconButton(
-            icon: const Icon(Icons.person_outline, color: Colors.white, size: 24),
+            icon: Icon(
+              Icons.person_outline,
+              color: Colors.white,
+              size: screenWidth * 0.06,
+            ),
             onPressed: () => _showLogoutDialog(context, authProvider),
           ),
         ],
@@ -222,11 +228,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildProfileHeader() {
     final authProvider = context.watch<AuthProvider>();
-    final userInfo = authProvider.userInfo ?? {};
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(20),
+      margin: EdgeInsets.symmetric(
+        horizontal: screenWidth * 0.05,
+        vertical: 15,
+      ),
+      padding: EdgeInsets.all(screenWidth * 0.045),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
@@ -242,42 +251,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Row(
         children: [
           Container(
-            width: 50,
-            height: 50,
+            width: screenWidth * 0.12,
+            height: screenWidth * 0.12,
+            constraints: const BoxConstraints(
+              minWidth: 40,
+              maxWidth: 60,
+            ),
             decoration: BoxDecoration(
               color: Colors.transparent,
-              borderRadius: BorderRadius.circular(25),
+              borderRadius: BorderRadius.circular(screenWidth * 0.06),
               border: Border.all(color: const Color(0xFFE0E0E0), width: 2),
             ),
-            child: const Icon(Icons.person_outline, color: Color(0xFF999999), size: 24),
+            child: Icon(
+              Icons.person_outline,
+              color: const Color(0xFF999999),
+              size: screenWidth * 0.06,
+            ),
           ),
-          const SizedBox(width: 15),
+          SizedBox(width: screenWidth * 0.035),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '${authProvider.nickname}',
-                  style: const TextStyle(
-                    fontSize: 18,
+                  authProvider.nickname,
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.045,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    color: const Color(0xFF333333),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                const Text(
+                Text(
                   '활성 디베이터',
                   style: TextStyle(
-                    color: Color(0xFF666666),
-                    fontSize: 14,
+                    color: const Color(0xFF666666),
+                    fontSize: screenWidth * 0.035,
                   ),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 20),
+            icon: Icon(
+              Icons.edit_outlined,
+              size: screenWidth * 0.05,
+            ),
             color: const Color(0xD66B7280),
+            padding: EdgeInsets.all(screenWidth * 0.02),
+            constraints: const BoxConstraints(),
             onPressed: () => _showEditNicknameDialog(context, authProvider),
           ),
         ],
@@ -291,15 +316,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final favorites = _favoriteNewsUrls.length;
     final comments = userInfo['commentCount'] ?? 0;
     final tokens = userInfo['tokenCount'] ?? 0;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
       child: Row(
         children: [
           _buildStatCard(Icons.favorite_outline, favorites.toString(), '즐겨찾기'),
-          const SizedBox(width: 8),
+          SizedBox(width: screenWidth * 0.02),
           _buildStatCard(Icons.chat_bubble_outline, comments.toString(), '댓글'),
-          const SizedBox(width: 8),
+          SizedBox(width: screenWidth * 0.02),
           _buildStatCard(Icons.star_outline, tokens.toString(), '토큰'),
         ],
       ),
@@ -307,9 +333,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildStatCard(IconData icon, String value, String label) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+        padding: EdgeInsets.symmetric(
+          vertical: screenWidth * 0.025,
+          horizontal: screenWidth * 0.02,
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -323,23 +354,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           border: Border.all(color: const Color(0xFFF0F0F0)),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: const Color(0xD66B7280), size: 20),
-            const SizedBox(height: 3),
+            Icon(icon, color: const Color(0xD66B7280), size: screenWidth * 0.05),
+            SizedBox(height: screenWidth * 0.007),
             Text(
               value,
-              style: const TextStyle(
-                fontSize: 17,
+              style: TextStyle(
+                fontSize: screenWidth * 0.042,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF333333),
+                color: const Color(0xFF333333),
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             Text(
               label,
-              style: const TextStyle(
-                color: Color(0xFF666666),
-                fontSize: 10,
+              style: TextStyle(
+                color: const Color(0xFF666666),
+                fontSize: screenWidth * 0.025,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -348,8 +384,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildQuickActions() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 15, 20, 0),
+      padding: EdgeInsets.fromLTRB(
+        screenWidth * 0.05,
+        15,
+        screenWidth * 0.05,
+        0,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -362,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               },
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: screenWidth * 0.02),
           Expanded(
             child: _buildActionButton(
               icon: Icons.bookmark_outline,
@@ -373,7 +416,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               },
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: screenWidth * 0.02),
           Expanded(
             child: _buildActionButton(
               icon: Icons.forum_outlined,
@@ -395,10 +438,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     required bool isPrimary,
     required VoidCallback onTap,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(15),
+        padding: EdgeInsets.symmetric(vertical: screenWidth * 0.035),
         decoration: BoxDecoration(
           color: isPrimary ? const Color(0xD66B7280) : Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -408,18 +453,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 20,
+              size: screenWidth * 0.05,
               color: isPrimary ? Colors.white : const Color(0xD66B7280),
             ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: isPrimary ? Colors.white : const Color(0xD66B7280),
-                fontWeight: FontWeight.bold,
+            SizedBox(width: screenWidth * 0.02),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: screenWidth * 0.035,
+                  color: isPrimary ? Colors.white : const Color(0xD66B7280),
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -443,18 +493,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       displayIcon = Icons.forum;
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 25, 20, 15),
+      padding: EdgeInsets.fromLTRB(
+        screenWidth * 0.05,
+        25,
+        screenWidth * 0.05,
+        15,
+      ),
       child: Row(
         children: [
-          Icon(displayIcon, color: const Color(0xD66B7280), size: 20),
-          const SizedBox(width: 10),
-          Text(
-            displayTitle,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF333333),
+          Icon(displayIcon, color: const Color(0xD66B7280), size: screenWidth * 0.05),
+          SizedBox(width: screenWidth * 0.025),
+          Flexible(
+            child: Text(
+              displayTitle,
+              style: TextStyle(
+                fontSize: screenWidth * 0.045,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF333333),
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -494,11 +554,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Column(
       children: [
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          padding: const EdgeInsets.all(12),
+          margin: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.05,
+            vertical: 10,
+          ),
+          padding: EdgeInsets.all(screenWidth * 0.03),
           decoration: BoxDecoration(
             color: const Color(0xFFFFF9E6),
             borderRadius: BorderRadius.circular(12),
@@ -506,19 +571,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.bookmark,
-                color: Color(0xFFFFD700),
-                size: 20,
+                color: const Color(0xFFFFD700),
+                size: screenWidth * 0.05,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: screenWidth * 0.02),
               Expanded(
                 child: Text(
                   '총 ${_favoriteNews.length}개의 즐겨찾기 뉴스',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF666666),
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.032,
+                    color: const Color(0xFF666666),
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -538,11 +604,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Column(
       children: [
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          padding: const EdgeInsets.all(12),
+          margin: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.05,
+            vertical: 10,
+          ),
+          padding: EdgeInsets.all(screenWidth * 0.03),
           decoration: BoxDecoration(
             color: const Color(0xFFE8F5E9),
             borderRadius: BorderRadius.circular(12),
@@ -550,19 +621,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.forum,
-                color: Color(0xD66B7280),
-                size: 20,
+                color: const Color(0xD66B7280),
+                size: screenWidth * 0.05,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: screenWidth * 0.02),
               Expanded(
                 child: Text(
                   '인기 토론 중 ${_participatedDiscussions.length}개에 참여했습니다',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF666666),
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.032,
+                    color: const Color(0xFF666666),
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -580,9 +652,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     bool isNewsMode = false
   }) {
     final isFavorite = _favoriteNewsUrls.contains(news.newsUrl);
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 7.5),
+      margin: EdgeInsets.symmetric(
+        horizontal: screenWidth * 0.05,
+        vertical: 7.5,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
@@ -597,7 +673,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       child: Stack(
         children: [
-          // 왼쪽 강조선 (조건부)
           if (showParticipated || showFavoriteIcon)
             Positioned(
               left: 0,
@@ -617,46 +692,56 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
 
-          // 기존 컨텐츠
           Padding(
-            padding: const EdgeInsets.all(15),
+            padding: EdgeInsets.all(screenWidth * 0.035),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xD66B7280),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            news.source ?? '뉴스',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: screenWidth * 0.02,
+                              vertical: screenWidth * 0.01,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xD66B7280),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              news.source ?? '뉴스',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: screenWidth * 0.03,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${_formatDateTime(news.lastCommentTime)}',
-                          style: const TextStyle(
-                            color: Color(0xFF666666),
-                            fontSize: 12,
+                          SizedBox(width: screenWidth * 0.02),
+                          Flexible(
+                            child: Text(
+                              _formatDateTime(news.lastCommentTime),
+                              style: TextStyle(
+                                color: const Color(0xFF666666),
+                                fontSize: screenWidth * 0.03,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     if (_selectedQuickTab == 0 && index < 3)
                       Container(
-                        width: 24,
-                        height: 24,
+                        width: screenWidth * 0.06,
+                        height: screenWidth * 0.06,
                         decoration: BoxDecoration(
                           color: const Color(0xD66B7280),
                           borderRadius: BorderRadius.circular(12),
@@ -664,9 +749,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         child: Center(
                           child: Text(
                             '${index + 1}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: screenWidth * 0.03,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -674,56 +759,59 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: screenWidth * 0.025),
 
                 Text(
                   news.title,
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.04,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    color: const Color(0xFF333333),
                     height: 1.4,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: screenWidth * 0.02),
 
                 Text(
                   news.description ?? '뉴스 내용을 확인하려면 탭하세요.',
-                  style: const TextStyle(
-                    color: Color(0xFF666666),
-                    fontSize: 14,
+                  style: TextStyle(
+                    color: const Color(0xFF666666),
+                    fontSize: screenWidth * 0.035,
                     height: 1.4,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: screenWidth * 0.03),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        if (isNewsMode) ...[
-                          _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
-                          const SizedBox(width: 20),
-                          _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
-                        ] else ...[
-                          _buildStatBadge(Icons.favorite_outline, '${news.participantCount}'),
-                          const SizedBox(width: 20),
-                          _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
-                          const SizedBox(width: 20),
-                          _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isNewsMode) ...[
+                            _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                            SizedBox(width: screenWidth * 0.05),
+                            _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
+                          ] else ...[
+                            _buildStatBadge(Icons.favorite_outline, '${news.participantCount}'),
+                            SizedBox(width: screenWidth * 0.05),
+                            _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
+                            SizedBox(width: screenWidth * 0.05),
+                            _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                     GestureDetector(
                       onTap: () => _toggleFavorite(news),
                       child: Icon(
                         isFavorite ? Icons.bookmark : Icons.bookmark_outline,
-                        size: 20,
+                        size: screenWidth * 0.05,
                         color: isFavorite ? const Color(0xFFFFD700) : const Color(0xFFCCCCCC),
                       ),
                     ),
@@ -732,17 +820,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
                 if (showParticipated)
                   Container(
-                    margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    margin: EdgeInsets.only(top: screenWidth * 0.02),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth * 0.02,
+                      vertical: screenWidth * 0.01,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xD66B7280),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text(
+                    child: Text(
                       '참여함',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 12,
+                        fontSize: screenWidth * 0.03,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -756,48 +847,54 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildStatBadge(IconData icon, String value) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18, color: const Color(0xFF666666)),
-        const SizedBox(width: 4),
+        Icon(icon, size: screenWidth * 0.045, color: const Color(0xFF666666)),
+        SizedBox(width: screenWidth * 0.01),
         Text(
           value,
-          style: const TextStyle(
-            color: Color(0xFF666666),
-            fontSize: 14,
+          style: TextStyle(
+            color: const Color(0xFF666666),
+            fontSize: screenWidth * 0.035,
           ),
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 
   Widget _buildEmptyState({required IconData icon, required String message}) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(screenWidth * 0.08),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(screenWidth * 0.05),
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
-                size: 48,
+                size: screenWidth * 0.12,
                 color: Colors.grey.shade400,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: screenWidth * 0.04),
             Text(
               message,
-              style: const TextStyle(
-                fontSize: 15,
-                color: Color(0xFF666666),
+              style: TextStyle(
+                fontSize: screenWidth * 0.037,
+                color: const Color(0xFF666666),
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: screenWidth * 0.06),
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.push(
@@ -805,13 +902,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   MaterialPageRoute(builder: (_) => const ExploreScreen()),
                 );
               },
-              icon: const Icon(Icons.explore_outlined),
-              label: const Text('뉴스 탐색하기'),
+              icon: Icon(Icons.explore_outlined, size: screenWidth * 0.045),
+              label: Text(
+                '뉴스 탐색하기',
+                style: TextStyle(fontSize: screenWidth * 0.037),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xD66B7280),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.06,
+                  vertical: screenWidth * 0.03,
                 ),
               ),
             ),
@@ -876,6 +976,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildBottomNavigation() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -885,7 +987,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -927,6 +1029,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -935,14 +1039,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Icon(
             icon,
             color: isSelected ? const Color(0xD66B7280) : const Color(0xFF666666),
-            size: 24,
+            size: screenWidth * 0.06,
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: screenWidth * 0.01),
           Text(
             label,
             style: TextStyle(
               color: isSelected ? const Color(0xD66B7280) : const Color(0xFF666666),
-              fontSize: 12,
+              fontSize: screenWidth * 0.03,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
@@ -952,16 +1056,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('로그아웃'),
-        content: const Text('정말 로그아웃하시겠습니까?'),
+        title: Text(
+          '로그아웃',
+          style: TextStyle(fontSize: screenWidth * 0.045),
+        ),
+        content: Text(
+          '정말 로그아웃하시겠습니까?',
+          style: TextStyle(fontSize: screenWidth * 0.037),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
+            child: Text(
+              '취소',
+              style: TextStyle(fontSize: screenWidth * 0.037),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -987,7 +1102,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xD66B7280),
             ),
-            child: const Text('로그아웃'),
+            child: Text(
+              '로그아웃',
+              style: TextStyle(fontSize: screenWidth * 0.037),
+            ),
           ),
         ],
       ),
@@ -996,12 +1114,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _showEditNicknameDialog(BuildContext context, AuthProvider authProvider) {
     final controller = TextEditingController(text: authProvider.nickname);
+    final screenWidth = MediaQuery.of(context).size.width;
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('닉네임 변경'),
+        title: Text(
+          '닉네임 변경',
+          style: TextStyle(fontSize: screenWidth * 0.045),
+        ),
         content: TextField(
           controller: controller,
           decoration: InputDecoration(
@@ -1015,11 +1137,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           maxLength: 10,
+          style: TextStyle(fontSize: screenWidth * 0.037),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
+            child: Text(
+              '취소',
+              style: TextStyle(fontSize: screenWidth * 0.037),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1041,7 +1167,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xD66B7280),
             ),
-            child: const Text('저장'),
+            child: Text(
+              '저장',
+              style: TextStyle(fontSize: screenWidth * 0.037),
+            ),
           ),
         ],
       ),
