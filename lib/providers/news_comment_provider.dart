@@ -43,8 +43,28 @@ class NewsCommentProvider extends ChangeNotifier {
       final comments = await _firestoreService.getComments(newsUrl);
       _commentsByNewsUrl[newsUrl] = comments.map((data) {
         final createdAt = data['createdAt'];
+
+        // 대댓글 목록 변환
+        final repliesData = data['replies'] as List<dynamic>? ?? [];
+        final replies = repliesData.map((replyData) {
+          final replyCreatedAt = replyData['createdAt'];
+          return NewsComment(
+            id: replyData['id'],  // 실제 문서 ID
+            newsUrl: newsUrl,
+            nickname: replyData['nickname'] ?? '익명',
+            stance: replyData['stance'] ?? 'pro',
+            content: replyData['content'] ?? '',
+            createdAt: replyCreatedAt is Timestamp
+                ? replyCreatedAt.toDate()
+                : DateTime.now(),
+            parentId: replyData['parentId'],
+            depth: replyData['depth'] ?? 1,
+            replyCount: 0,
+          );
+        }).toList();
+
         return NewsComment(
-          id: data['id'].hashCode,
+          id: data['id'],  // 실제 문서 ID 사용
           newsUrl: newsUrl,
           nickname: data['nickname'] ?? '익명',
           stance: data['stance'] ?? 'pro',
@@ -52,6 +72,10 @@ class NewsCommentProvider extends ChangeNotifier {
           createdAt: createdAt is Timestamp
               ? createdAt.toDate()
               : DateTime.now(),
+          parentId: data['parentId'],
+          depth: data['depth'] ?? 0,
+          replyCount: data['replyCount'] ?? 0,
+          replies: replies,
         );
       }).toList();
 
@@ -104,9 +128,17 @@ class NewsCommentProvider extends ChangeNotifier {
     }
   }
 
-  // 댓글 개수
+  // 댓글 개수 (대댓글 포함)
   int getCommentCount(String newsUrl) {
-    return _commentsByNewsUrl[newsUrl]?.length ?? 0;
+    final comments = _commentsByNewsUrl[newsUrl] ?? [];
+    int total = comments.length;
+
+    // 대댓글 개수 추가
+    for (var comment in comments) {
+      total += comment.replies.length;
+    }
+
+    return total;
   }
 
   // 참여한 토론 로드

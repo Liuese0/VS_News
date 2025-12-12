@@ -1,5 +1,6 @@
 // lib/services/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'auth_service.dart';
 
 class FirestoreService {
@@ -13,6 +14,50 @@ class FirestoreService {
   // ========== 로컬 캐시 ==========
   final Map<String, _NewsStats> _statsCache = {};
   final Duration _cacheDuration = const Duration(minutes: 5);
+
+  // ========== 댓글 제한 확인 ==========
+
+  /// 오늘 작성한 댓글 수 확인
+  Future<int> getTodayCommentCount() async {
+    final uid = await _authService.getCurrentUid();
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    final doc = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('dailyComments')
+        .doc(today)
+        .get();
+
+    if (!doc.exists) return 0;
+
+    final data = doc.data()!;
+    final lastReset = (data['lastReset'] as Timestamp).toDate();
+    final now = DateTime.now();
+
+    // 자정이 지났으면 리셋
+    if (now.day != lastReset.day) {
+      return 0;
+    }
+
+    return data['count'] ?? 0;
+  }
+
+  /// 일일 댓글 카운트 증가
+  Future<void> _incrementDailyCommentCount() async {
+    final uid = await _authService.getCurrentUid();
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('dailyComments')
+        .doc(today)
+        .set({
+      'count': FieldValue.increment(1),
+      'lastReset': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 
   // ========== 즐겨찾기 관리 ==========
 
@@ -267,21 +312,47 @@ class FirestoreService {
     return '${uid}_${newsUrl.hashCode.abs()}';
   }
 
-  // ========== 댓글 관리 ==========
+  // ========== 댓글 관리 (대댓글 지원) ==========
 
-  /// 댓글 작성 (통계 비정규화 포함)
-  Future<void> addComment({
+  /// 댓글 작성 (대댓글 지원, 일일 제한, 글자 수 제한)
+  Future<String> addComment({
     required String newsUrl,
     required String content,
     required String stance,
+    String? parentId,  // 대댓글인 경우 부모 댓글 ID
     String? newsTitle,
     String? newsDescription,
     String? newsImageUrl,
     String? newsSource,
   }) async {
+    // 글자 수 제한 (50자)
+    if (content.trim().length > 50) {
+      throw Exception('댓글은 50자 이내로 작성해주세요 (현재: ${content.trim().length}자)');
+    }
+
+    // 일일 댓글 제한 확인 (5개)
+    final todayCount = await getTodayCommentCount();
+    if (todayCount >= 5) {
+      throw Exception('하루 댓글 작성 제한(5개)에 도달했습니다');
+    }
+
+    // 대댓글 깊이 제한 (1단계만 허용)
+    if (parentId != null) {
+      final parentDoc = await _firestore.collection('comments').doc(parentId).get();
+      if (!parentDoc.exists) {
+        throw Exception('부모 댓글을 찾을 수 없습니다');
+      }
+      final parentDepth = parentDoc.data()!['depth'] ?? 0;
+      if (parentDepth >= 1) {
+        throw Exception('대댓글에는 답글을 달 수 없습니다');
+      }
+    }
+
     final uid = await _authService.getCurrentUid();
     final userInfo = await _authService.getUserInfo();
     final newsStatsId = _generateNewsStatsId(newsUrl);
+
+    String? newCommentId;
 
     await _firestore.runTransaction((transaction) async {
       // 1. 기존 뉴스 통계 확인
@@ -290,16 +361,29 @@ class FirestoreService {
 
       // 2. 댓글 문서 생성
       final commentRef = _firestore.collection('comments').doc();
+      newCommentId = commentRef.id;
+
       transaction.set(commentRef, {
         'userId': uid,
         'nickname': userInfo?['nickname'] ?? '익명',
         'newsUrl': newsUrl,
-        'content': content,
+        'content': content.trim(),
         'stance': stance,
+        'parentId': parentId,
+        'depth': parentId != null ? 1 : 0,
+        'replyCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 3. 뉴스 통계 업데이트 (비정규화)
+      // 3. 부모 댓글의 replyCount 증가 (대댓글인 경우)
+      if (parentId != null) {
+        final parentRef = _firestore.collection('comments').doc(parentId);
+        transaction.update(parentRef, {
+          'replyCount': FieldValue.increment(1),
+        });
+      }
+
+      // 4. 뉴스 통계 업데이트 (비정규화)
       if (statsDoc.exists) {
         final data = statsDoc.data()!;
         final participants = List<String>.from(data['participants'] ?? []);
@@ -336,13 +420,13 @@ class FirestoreService {
         });
       }
 
-      // 4. 유저 commentCount 증가
+      // 5. 유저 commentCount 증가
       final userRef = _firestore.collection('users').doc(uid);
       transaction.update(userRef, {
         'commentCount': FieldValue.increment(1),
       });
 
-      // 5. 참여한 토론에 추가
+      // 6. 참여한 토론에 추가
       final participatedRef = _firestore
           .collection('users')
           .doc(uid)
@@ -355,24 +439,51 @@ class FirestoreService {
       }, SetOptions(merge: true));
     });
 
+    // 7. 일일 댓글 카운트 증가 (트랜잭션 외부에서)
+    await _incrementDailyCommentCount();
+
     // 로컬 캐시 무효화
     _statsCache.remove(newsUrl);
+
+    return newCommentId!;
   }
 
-  /// 특정 뉴스의 댓글 가져오기
+  /// 특정 뉴스의 댓글 가져오기 (대댓글 포함, 계층 구조)
   Future<List<Map<String, dynamic>>> getComments(String newsUrl) async {
+    // 1. 모든 댓글 가져오기
     final snapshot = await _firestore
         .collection('comments')
         .where('newsUrl', isEqualTo: newsUrl)
-        .orderBy('createdAt', descending: true)
-        .limit(50) // 페이지네이션 적용
+        .orderBy('createdAt', descending: false) // 시간순 정렬 (오래된 것부터)
+        .limit(200) // 최대 200개
         .get();
 
-    return snapshot.docs.map((doc) {
+    final allComments = snapshot.docs.map((doc) {
       final data = doc.data();
       data['id'] = doc.id;
       return data;
     }).toList();
+
+    // 2. 댓글과 대댓글 분리
+    final parentComments = allComments.where((c) => c['parentId'] == null).toList();
+    final replies = allComments.where((c) => c['parentId'] != null).toList();
+
+    // 3. 각 댓글에 대댓글 매핑
+    for (var comment in parentComments) {
+      final commentReplies = replies
+          .where((r) => r['parentId'] == comment['id'])
+          .toList();
+      comment['replies'] = commentReplies;
+    }
+
+    // 최신 댓글이 위로 오도록 역순 정렬
+    parentComments.sort((a, b) {
+      final aTime = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+      final bTime = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+      return bTime.compareTo(aTime);
+    });
+
+    return parentComments;
   }
 
   /// 댓글 개수 가져오기 (비정규화된 데이터 사용)

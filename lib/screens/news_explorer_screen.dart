@@ -916,6 +916,7 @@ class NewsDetailWithDiscussion extends StatefulWidget {
 
 class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   final TextEditingController _commentController = TextEditingController();
+  final TextEditingController _replyController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   List<NewsComment> _comments = [];
@@ -925,6 +926,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   bool _isSubmittingVote = false;
   bool _isSubmittingComment = false;
   bool _showCommentInput = false;
+
+  // 대댓글 작성 관련
+  String? _replyingToCommentId;
+  String? _replyingToNickname;
 
   @override
   void initState() {
@@ -941,12 +946,52 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 
   Future<void> _loadComments() async {
-    final newsCommentProvider = context.read<NewsCommentProvider>();
-    await newsCommentProvider.loadComments(widget.news.url);
+    try {
+      final firestoreService = FirestoreService();
+      final commentsData = await firestoreService.getComments(widget.news.url);
 
-    setState(() {
-      _comments = newsCommentProvider.getComments(widget.news.url);
-    });
+      setState(() {
+        _comments = commentsData.map((data) {
+          final createdAt = data['createdAt'];
+
+          // 대댓글 목록 변환
+          final repliesData = data['replies'] as List<dynamic>? ?? [];
+          final replies = repliesData.map((replyData) {
+            final replyCreatedAt = replyData['createdAt'];
+            return NewsComment(
+              id: replyData['id'],  // 실제 문서 ID 사용
+              newsUrl: widget.news.url,
+              nickname: replyData['nickname'] ?? '익명',
+              stance: replyData['stance'] ?? 'pro',
+              content: replyData['content'] ?? '',
+              createdAt: replyCreatedAt is Timestamp
+                  ? replyCreatedAt.toDate()
+                  : DateTime.now(),
+              parentId: replyData['parentId'],
+              depth: replyData['depth'] ?? 1,
+              replyCount: 0,
+            );
+          }).toList();
+
+          return NewsComment(
+            id: data['id'],  // 실제 문서 ID 사용
+            newsUrl: widget.news.url,
+            nickname: data['nickname'] ?? '익명',
+            stance: data['stance'] ?? 'pro',
+            content: data['content'] ?? '',
+            createdAt: createdAt is Timestamp
+                ? createdAt.toDate()
+                : DateTime.now(),
+            parentId: data['parentId'],
+            depth: data['depth'] ?? 0,
+            replyCount: data['replyCount'] ?? 0,
+            replies: replies,
+          );
+        }).toList();
+      });
+    } catch (e) {
+      print('댓글 로드 실패: $e');
+    }
   }
 
   Future<void> _loadUserVote() async {
@@ -970,8 +1015,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
       maxChildSize: 0.95,
@@ -1119,7 +1162,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               onPressed: () async {
                 String url = widget.news.url;
 
-                // URL 유효성 검사 및 수정
                 if (url.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -1130,12 +1172,9 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   return;
                 }
 
-                // http:// 또는 https:// 없으면 추가
                 if (!url.startsWith('http://') && !url.startsWith('https://')) {
                   url = 'https://$url';
                 }
-
-                print('Opening URL: $url'); // 디버깅용
 
                 try {
                   final uri = Uri.parse(url);
@@ -1146,32 +1185,27 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       mode: LaunchMode.externalApplication,
                     );
 
-                    if (!launched) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('브라우저를 열 수 없습니다'),
-                            backgroundColor: AppColors.errorColor,
-                          ),
-                        );
-                      }
-                    }
-                  } else {
-                    if (mounted) {
+                    if (!launched && mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('이 링크를 열 수 없습니다: $url'),
+                        const SnackBar(
+                          content: Text('브라우저를 열 수 없습니다'),
                           backgroundColor: AppColors.errorColor,
-                          duration: const Duration(seconds: 3),
                         ),
                       );
                     }
-                  }
-                } catch (e) {
-                  print('URL 열기 오류: $e');
-                  if (mounted) {
+                  } else if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
+                        content: Text('이 링크를 열 수 없습니다: $url'),
+                        backgroundColor: AppColors.errorColor,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
                         content: Text('링크 형식이 올바르지 않습니다'),
                         backgroundColor: AppColors.errorColor,
                       ),
@@ -1544,10 +1578,95 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               ),
             ],
           ),
-          SizedBox(height: screenWidth * 0.05),
+          SizedBox(height: screenWidth * 0.03),
+
+          // 일일 댓글 제한 표시
+          FutureBuilder<int>(
+            future: FirestoreService().getTodayCommentCount(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const SizedBox.shrink();
+
+              final todayCount = snapshot.data!;
+              final remaining = 5 - todayCount;
+
+              if (remaining <= 0) {
+                return Container(
+                  margin: EdgeInsets.only(bottom: screenWidth * 0.04),
+                  padding: EdgeInsets.all(screenWidth * 0.03),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFEF5350)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: const Color(0xFFEF5350),
+                        size: screenWidth * 0.045,
+                      ),
+                      SizedBox(width: screenWidth * 0.02),
+                      Expanded(
+                        child: Text(
+                          '오늘의 댓글 작성 제한(5개)에 도달했습니다',
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.03,
+                            color: const Color(0xFFD32F2F),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return Container(
+                margin: EdgeInsets.only(bottom: screenWidth * 0.04),
+                padding: EdgeInsets.all(screenWidth * 0.03),
+                decoration: BoxDecoration(
+                  color: remaining <= 2
+                      ? const Color(0xFFFFF9E6)
+                      : const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: remaining <= 2
+                        ? const Color(0xFFFFE082)
+                        : const Color(0xFFA5D6A7),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      remaining <= 2 ? Icons.warning_amber : Icons.info_outline,
+                      color: remaining <= 2
+                          ? const Color(0xFFF57C00)
+                          : const Color(0xFF66BB6A),
+                      size: screenWidth * 0.045,
+                    ),
+                    SizedBox(width: screenWidth * 0.02),
+                    Expanded(
+                      child: Text(
+                        '오늘 댓글 ${remaining}개 남음 (최대 50자)',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.03,
+                          color: const Color(0xFF666666),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
 
           if (_showCommentInput) ...[
-            _buildCommentInput(),
+            if (_replyingToCommentId != null)
+              _buildCommentInput(
+                parentId: _replyingToCommentId,
+                parentNickname: _replyingToNickname,
+              )
+            else
+              _buildCommentInput(),
             SizedBox(height: screenWidth * 0.06),
           ],
 
@@ -1560,90 +1679,195 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
     );
   }
 
-  Widget _buildCommentInput() {
+  Widget _buildCommentInput({String? parentId, String? parentNickname}) {
     final stanceLabel = _userVote == 'pro' ? '찬성' : '반대';
     final stanceColor = _userVote == 'pro'
         ? const Color(0xD66B7280)
         : const Color(0xFF888888);
     final screenWidth = MediaQuery.of(context).size.width;
 
+    final controller = parentId != null ? _replyController : _commentController;
+    final isReplying = parentId != null;
+
     return Container(
       padding: EdgeInsets.all(screenWidth * 0.04),
       decoration: BoxDecoration(
         color: const Color(0xFFF8F9FA),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFFE8E8E8)),
+        border: Border.all(
+          color: isReplying
+              ? const Color(0xD66B7280).withOpacity(0.3)
+              : const Color(0xFFE8E8E8),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: screenWidth * 0.025,
-              vertical: screenWidth * 0.015,
-            ),
-            decoration: BoxDecoration(
-              color: stanceColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: stanceColor.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _userVote == 'pro'
-                      ? Icons.thumb_up
-                      : Icons.thumb_down,
-                  size: screenWidth * 0.04,
-                  color: stanceColor,
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.025,
+                  vertical: screenWidth * 0.015,
                 ),
-                SizedBox(width: screenWidth * 0.015),
-                Text(
-                  '$stanceLabel 의견',
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.032,
-                    color: stanceColor,
-                    fontWeight: FontWeight.bold,
+                decoration: BoxDecoration(
+                  color: stanceColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: stanceColor.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _userVote == 'pro'
+                          ? Icons.thumb_up
+                          : Icons.thumb_down,
+                      size: screenWidth * 0.04,
+                      color: stanceColor,
+                    ),
+                    SizedBox(width: screenWidth * 0.015),
+                    Text(
+                      isReplying ? '답글 작성' : '$stanceLabel 의견',
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.032,
+                        color: stanceColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isReplying) ...[
+                SizedBox(width: screenWidth * 0.02),
+                Expanded(
+                  child: Text(
+                    '@$parentNickname',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.03,
+                      color: const Color(0xFF666666),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  iconSize: screenWidth * 0.045,
+                  onPressed: () {
+                    setState(() {
+                      _replyingToCommentId = null;
+                      _replyingToNickname = null;
+                    });
+                    _replyController.clear();
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
               ],
-            ),
+            ],
           ),
           SizedBox(height: screenWidth * 0.03),
 
-          TextField(
-            controller: _commentController,
-            maxLines: 3,
-            style: TextStyle(fontSize: screenWidth * 0.037),
-            decoration: InputDecoration(
-              hintText: '$stanceLabel 의견을 작성해주세요...',
-              hintStyle: TextStyle(
-                color: Colors.grey.shade400,
-                fontSize: screenWidth * 0.035,
-              ),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xD66B7280), width: 2),
-              ),
-              contentPadding: EdgeInsets.all(screenWidth * 0.035),
-            ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, child) {
+              final length = value.text.length;
+              final isOverLimit = length > 50;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: controller,
+                    maxLines: 3,
+                    maxLength: 50,
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                    decoration: InputDecoration(
+                      hintText: isReplying
+                          ? '$parentNickname님에게 답글...'
+                          : '$stanceLabel 의견을 작성해주세요...',
+                      hintStyle: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: screenWidth * 0.035,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isOverLimit
+                              ? Colors.red
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isOverLimit
+                              ? Colors.red
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isOverLimit
+                              ? Colors.red
+                              : const Color(0xD66B7280),
+                          width: 2,
+                        ),
+                      ),
+                      counterText: '',
+                      contentPadding: EdgeInsets.all(screenWidth * 0.035),
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.02),
+                  Row(
+                    children: [
+                      Text(
+                        '$length/50',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.03,
+                          color: isOverLimit
+                              ? Colors.red
+                              : length > 40
+                              ? Colors.orange
+                              : Colors.grey,
+                          fontWeight: isOverLimit ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      if (isOverLimit) ...[
+                        SizedBox(width: screenWidth * 0.02),
+                        Icon(
+                          Icons.error_outline,
+                          size: screenWidth * 0.04,
+                          color: Colors.red,
+                        ),
+                        SizedBox(width: screenWidth * 0.01),
+                        Text(
+                          '글자 수 초과',
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.028,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
           SizedBox(height: screenWidth * 0.03),
 
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _isSubmittingComment ? null : _submitComment,
+              onPressed: _isSubmittingComment
+                  ? null
+                  : () => isReplying
+                  ? _submitReply(parentId!)
+                  : _submitComment(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: stanceColor,
                 padding: EdgeInsets.symmetric(vertical: screenWidth * 0.035),
@@ -1662,7 +1886,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                 ),
               )
                   : Text(
-                '의견 작성',
+                isReplying ? '답글 작성' : '의견 작성',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: screenWidth * 0.037,
@@ -1705,92 +1929,254 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
     return Container(
       margin: EdgeInsets.only(bottom: screenWidth * 0.03),
-      padding: EdgeInsets.all(screenWidth * 0.04),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: comment.isPro
-              ? const Color(0xD66B7280).withOpacity(0.3)
-              : const Color(0xFF888888).withOpacity(0.3),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: screenWidth * 0.025,
-                  vertical: screenWidth * 0.012,
+          // 부모 댓글
+          Container(
+            padding: EdgeInsets.all(screenWidth * 0.04),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: comment.isPro
+                    ? const Color(0xD66B7280).withOpacity(0.3)
+                    : const Color(0xFF888888).withOpacity(0.3),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
-                decoration: BoxDecoration(
-                  color: comment.isPro
-                      ? const Color(0xD66B7280)
-                      : const Color(0xFF888888),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Icon(
-                      comment.isPro
-                          ? Icons.thumb_up
-                          : Icons.thumb_down,
-                      size: screenWidth * 0.03,
-                      color: Colors.white,
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: screenWidth * 0.025,
+                        vertical: screenWidth * 0.012,
+                      ),
+                      decoration: BoxDecoration(
+                        color: comment.isPro
+                            ? const Color(0xD66B7280)
+                            : const Color(0xFF888888),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            comment.isPro
+                                ? Icons.thumb_up
+                                : Icons.thumb_down,
+                            size: screenWidth * 0.03,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: screenWidth * 0.01),
+                          Text(
+                            comment.isPro ? '찬성' : '반대',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.027,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    SizedBox(width: screenWidth * 0.01),
+                    SizedBox(width: screenWidth * 0.025),
+                    Flexible(
+                      child: Text(
+                        comment.nickname,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: screenWidth * 0.035,
+                          color: const Color(0xFF333333),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const Spacer(),
                     Text(
-                      comment.isPro ? '찬성' : '반대',
+                      _formatDateTime(comment.createdAt),
                       style: TextStyle(
-                        fontSize: screenWidth * 0.027,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                        fontSize: screenWidth * 0.03,
+                        color: const Color(0xFF999999),
                       ),
                     ),
                   ],
                 ),
-              ),
-              SizedBox(width: screenWidth * 0.025),
-              Flexible(
-                child: Text(
-                  comment.nickname,
+                SizedBox(height: screenWidth * 0.03),
+                Text(
+                  comment.content,
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
                     fontSize: screenWidth * 0.035,
-                    color: const Color(0xFF333333),
+                    height: 1.5,
+                    color: const Color(0xFF444444),
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const Spacer(),
-              Text(
-                _formatDateTime(comment.createdAt),
-                style: TextStyle(
-                  fontSize: screenWidth * 0.03,
-                  color: const Color(0xFF999999),
+                SizedBox(height: screenWidth * 0.025),
+
+                // 답글 버튼
+                Row(
+                  children: [
+                    if (comment.replyCount > 0)
+                      Container(
+                        margin: EdgeInsets.only(right: screenWidth * 0.02),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth * 0.02,
+                          vertical: screenWidth * 0.01,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F0F0),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.subdirectory_arrow_right,
+                              size: screenWidth * 0.035,
+                              color: const Color(0xFF666666),
+                            ),
+                            SizedBox(width: screenWidth * 0.01),
+                            Text(
+                              '답글 ${comment.replyCount}',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.03,
+                                color: const Color(0xFF666666),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    TextButton.icon(
+                      onPressed: _userVote == null
+                          ? null
+                          : () {
+                        setState(() {
+                          _replyingToCommentId = comment.id;  // 이미 String인 실제 문서 ID
+                          _replyingToNickname = comment.nickname;
+                        });
+                      },
+                      icon: Icon(
+                        Icons.reply,
+                        size: screenWidth * 0.04,
+                      ),
+                      label: Text(
+                        '답글',
+                        style: TextStyle(fontSize: screenWidth * 0.032),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xD66B7280),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth * 0.02,
+                          vertical: screenWidth * 0.01,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: screenWidth * 0.03),
-          Text(
-            comment.content,
-            style: TextStyle(
-              fontSize: screenWidth * 0.035,
-              height: 1.5,
-              color: const Color(0xFF444444),
+              ],
             ),
           ),
+
+          // 대댓글 목록
+          if (comment.replies.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(
+                left: screenWidth * 0.08,
+                top: screenWidth * 0.02,
+              ),
+              child: Column(
+                children: comment.replies.map((reply) {
+                  return Container(
+                    margin: EdgeInsets.only(bottom: screenWidth * 0.02),
+                    padding: EdgeInsets.all(screenWidth * 0.035),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: reply.isPro
+                            ? const Color(0xD66B7280).withOpacity(0.2)
+                            : const Color(0xFF888888).withOpacity(0.2),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.subdirectory_arrow_right,
+                              size: screenWidth * 0.035,
+                              color: const Color(0xFF999999),
+                            ),
+                            SizedBox(width: screenWidth * 0.015),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: screenWidth * 0.02,
+                                vertical: screenWidth * 0.008,
+                              ),
+                              decoration: BoxDecoration(
+                                color: reply.isPro
+                                    ? const Color(0xD66B7280).withOpacity(0.1)
+                                    : const Color(0xFF888888).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                reply.isPro ? '찬성' : '반대',
+                                style: TextStyle(
+                                  fontSize: screenWidth * 0.025,
+                                  color: reply.isPro
+                                      ? const Color(0xD66B7280)
+                                      : const Color(0xFF888888),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: screenWidth * 0.02),
+                            Flexible(
+                              child: Text(
+                                reply.nickname,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: screenWidth * 0.032,
+                                  color: const Color(0xFF333333),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              _formatDateTime(reply.createdAt),
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.028,
+                                color: const Color(0xFF999999),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: screenWidth * 0.025),
+                        Text(
+                          reply.content,
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.032,
+                            height: 1.5,
+                            color: const Color(0xFF444444),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
         ],
       ),
     );
@@ -1887,24 +2273,25 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
       return;
     }
 
+    if (_commentController.text.trim().length > 50) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('댓글은 50자 이내로 작성해주세요'),
+          backgroundColor: AppColors.errorColor,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmittingComment = true);
 
     try {
-      final authProvider = context.read<AuthProvider>();
-      final newsCommentProvider = context.read<NewsCommentProvider>();
+      final firestoreService = FirestoreService();
 
-      final newComment = NewsComment(
-        id: DateTime.now().millisecondsSinceEpoch,
+      await firestoreService.addComment(
         newsUrl: widget.news.url,
-        nickname: authProvider.nickname,
-        stance: _userVote!,
         content: _commentController.text.trim(),
-        createdAt: DateTime.now(),
-      );
-
-      await newsCommentProvider.addComment(
-        widget.news.url,
-        newComment,
+        stance: _userVote!,
         newsTitle: widget.news.title,
         newsDescription: widget.news.description,
         newsImageUrl: widget.news.imageUrl,
@@ -1926,8 +2313,74 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('의견 등록 실패: $e'),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: AppColors.errorColor,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isSubmittingComment = false);
+    }
+  }
+
+  Future<void> _submitReply(String parentId) async {
+    if (_replyController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('답글을 입력해주세요')),
+      );
+      return;
+    }
+
+    if (_replyController.text.trim().length > 50) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('답글은 50자 이내로 작성해주세요'),
+          backgroundColor: AppColors.errorColor,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmittingComment = true);
+
+    try {
+      final firestoreService = FirestoreService();
+
+      await firestoreService.addComment(
+        newsUrl: widget.news.url,
+        content: _replyController.text.trim(),
+        stance: _userVote!,
+        parentId: parentId,
+        newsTitle: widget.news.title,
+        newsDescription: widget.news.description,
+        newsImageUrl: widget.news.imageUrl,
+        newsSource: widget.news.source,
+      );
+
+      setState(() {
+        _replyController.clear();
+        _replyingToCommentId = null;
+        _replyingToNickname = null;
+      });
+
+      await _loadComments();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('답글이 등록되었습니다'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.errorColor,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -1949,18 +2402,23 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   @override
   void dispose() {
     _commentController.dispose();
+    _replyController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 }
 
 class NewsComment {
-  final int id;
+  final String id;  // Firestore 문서 ID
   final String newsUrl;
   final String nickname;
   final String stance;
   final String content;
   final DateTime createdAt;
+  final String? parentId;
+  final int depth;
+  final int replyCount;
+  final List<NewsComment> replies;
 
   NewsComment({
     required this.id,
@@ -1969,7 +2427,12 @@ class NewsComment {
     required this.stance,
     required this.content,
     required this.createdAt,
+    this.parentId,
+    this.depth = 0,
+    this.replyCount = 0,
+    this.replies = const [],
   });
 
   bool get isPro => stance == 'pro';
+  bool get isReply => parentId != null;
 }
