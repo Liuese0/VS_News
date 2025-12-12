@@ -163,7 +163,7 @@ class ApiConstants {
 }
 
 class AppStrings {
-  static const String appName = '뉴스 디베이터';
+  static const String appName = 'LOGOS : Forum';
   static const String errorNetwork = '네트워크 연결을 확인해주세요';
   static const String errorGeneral = '오류가 발생했습니다';
   static const String loading = '로딩 중...';

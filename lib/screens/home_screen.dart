@@ -10,6 +10,7 @@ import '../screens/auth/welcome_screen.dart';
 import '../utils/constants.dart';
 import '../services/firestore_service.dart';
 import '../providers/news_provider.dart';
+import 'my_page_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -183,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 SizedBox(width: screenWidth * 0.02),
                 Flexible(
                   child: Text(
-                    '뉴스 디베이터',
+                    'LOGOS : Forum',
                     style: TextStyle(
                       fontSize: screenWidth * 0.06,
                       fontWeight: FontWeight.bold,
@@ -1048,6 +1049,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+// home_screen.dart의 _buildBottomNavigation 메서드 수정본
+
   Widget _buildBottomNavigation() {
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -1082,11 +1085,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 },
               ),
               _buildBottomNavItem(
-                icon: Icons.bookmark_outline,
-                label: '즐겨찾기',
+                icon: Icons.person_outline,
+                label: '마이페이지',
                 isSelected: false,
                 onTap: () {
-                  setState(() => _selectedQuickTab = 1);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MyPageScreen()),
+                  );
                 },
               ),
             ],
