@@ -546,6 +546,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  // home_screen.dart의 _buildFavoriteNewsList 메서드 수정본
+  // (개수에 따라 색상이 변하는 버전)
+
   Widget _buildFavoriteNewsList() {
     if (_favoriteNews.isEmpty) {
       return _buildEmptyState(
@@ -555,6 +558,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
+    final favoriteCount = _favoriteNews.length;
+
+    // 개수에 따른 색상 결정 (8개 이상: 주황색, 10개: 빨간색)
+    Color borderColor;
+    Color backgroundColor;
+    Color iconColor;
+    Color countColor;
+
+    if (favoriteCount >= 10) {
+      // 최대 도달 - 빨간색
+      borderColor = const Color(0xFFEF5350);
+      backgroundColor = const Color(0xFFFFEBEE);
+      iconColor = const Color(0xFFEF5350);
+      countColor = const Color(0xFFD32F2F);
+    } else if (favoriteCount >= 8) {
+      // 거의 찬 상태 - 주황색
+      borderColor = const Color(0xFFFF9800);
+      backgroundColor = const Color(0xFFFFF3E0);
+      iconColor = const Color(0xFFFF9800);
+      countColor = const Color(0xFFF57C00);
+    } else {
+      // 여유 있는 상태 - 금색
+      borderColor = const Color(0xFFFFD700);
+      backgroundColor = const Color(0xFFFFF9E6);
+      iconColor = const Color(0xFFFFD700);
+      countColor = const Color(0xFFFFD700);
+    }
 
     return Column(
       children: [
@@ -565,28 +595,68 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           padding: EdgeInsets.all(screenWidth * 0.03),
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF9E6),
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFFFD700)),
+            border: Border.all(color: borderColor),
           ),
           child: Row(
             children: [
               Icon(
-                Icons.bookmark,
-                color: const Color(0xFFFFD700),
+                favoriteCount >= 10 ? Icons.bookmark : Icons.bookmark,
+                color: iconColor,
                 size: screenWidth * 0.05,
               ),
               SizedBox(width: screenWidth * 0.02),
               Expanded(
-                child: Text(
-                  '총 ${_favoriteNews.length}개의 즐겨찾기 뉴스',
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.032,
-                    color: const Color(0xFF666666),
+                child: RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.032,
+                      color: const Color(0xFF666666),
+                    ),
+                    children: [
+                      const TextSpan(text: '총 '),
+                      TextSpan(
+                        text: '$favoriteCount',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: countColor,
+                          fontSize: screenWidth * 0.035,
+                        ),
+                      ),
+                      const TextSpan(text: '개의 즐겨찾기 뉴스 '),
+                      TextSpan(
+                        text: '($favoriteCount/10)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: countColor,
+                          fontSize: screenWidth * 0.032,
+                        ),
+                      ),
+                    ],
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (favoriteCount >= 10)
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.02,
+                    vertical: screenWidth * 0.01,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF5350),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '최대',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: screenWidth * 0.028,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -921,6 +991,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  // home_screen.dart의 _toggleFavorite 메서드 수정본
+
   Future<void> _toggleFavorite(NewsDiscussionItem news) async {
     try {
       if (_favoriteNewsUrls.contains(news.newsUrl)) {
@@ -936,10 +1008,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         );
       } else {
-        if (_favoriteNewsUrls.length >= 100) {
+        // 10개 제한 체크 - 서버에서 처리되지만 UI에서 미리 체크
+        if (_favoriteNewsUrls.length >= 10) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('즐겨찾기는 최대 100개까지 가능합니다'),
+              content: Text('즐겨찾기는 최대 10개까지 가능합니다'),
               backgroundColor: AppColors.warningColor,
             ),
           );

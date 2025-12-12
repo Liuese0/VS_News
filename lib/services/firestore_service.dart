@@ -59,9 +59,9 @@ class FirestoreService {
     }, SetOptions(merge: true));
   }
 
-  // ========== 즐겨찾기 관리 ==========
+  // ========== 즐겨찾기 관리 (최대 10개 제한) ==========
 
-  /// 즐겨찾기 추가 (뉴스 메타데이터 포함)
+  /// 즐겨찾기 추가 (뉴스 메타데이터 포함, 최대 10개 제한)
   Future<void> addFavorite(String newsUrl, {
     String? title,
     String? description,
@@ -70,6 +70,17 @@ class FirestoreService {
     DateTime? publishedAt,
   }) async {
     final uid = await _authService.getCurrentUid();
+
+    // 현재 즐겨찾기 개수 확인
+    final currentFavorites = await _firestore
+        .collection('favorites')
+        .where('userId', isEqualTo: uid)
+        .get();
+
+    if (currentFavorites.docs.length >= 10) {
+      throw Exception('즐겨찾기는 최대 10개까지 가능합니다');
+    }
+
     final favoriteId = _generateFavoriteId(uid, newsUrl);
 
     final batch = _firestore.batch();

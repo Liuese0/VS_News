@@ -816,6 +816,8 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
+  // news_explorer_screen.dart의 _toggleFavorite 메서드 수정본
+
   Future<void> _toggleFavorite(AutoCollectedNews news) async {
     final newsUrl = news.url;
 
@@ -832,10 +834,11 @@ class _ExploreScreenState extends State<ExploreScreen>
           );
         }
       } else {
-        if (_favoriteNewsIds.length >= 100) {
+        // 10개 제한 체크 - 서버에서 처리되지만 UI에서 미리 체크
+        if (_favoriteNewsIds.length >= 10) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('즐겨찾기는 최대 100개까지 가능합니다'),
+              content: Text('즐겨찾기는 최대 10개까지 가능합니다'),
               backgroundColor: AppColors.warningColor,
             ),
           );
