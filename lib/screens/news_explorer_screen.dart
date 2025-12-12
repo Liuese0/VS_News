@@ -10,6 +10,7 @@ import '../utils/constants.dart';
 import '../providers/auth_provider.dart';
 import '../providers/news_comment_provider.dart';
 import '../providers/news_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -1115,7 +1116,69 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () async {
+                String url = widget.news.url;
+
+                // URL 유효성 검사 및 수정
+                if (url.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('뉴스 링크가 없습니다'),
+                      backgroundColor: AppColors.errorColor,
+                    ),
+                  );
+                  return;
+                }
+
+                // http:// 또는 https:// 없으면 추가
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                  url = 'https://$url';
+                }
+
+                print('Opening URL: $url'); // 디버깅용
+
+                try {
+                  final uri = Uri.parse(url);
+
+                  if (await canLaunchUrl(uri)) {
+                    final launched = await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+
+                    if (!launched) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('브라우저를 열 수 없습니다'),
+                            backgroundColor: AppColors.errorColor,
+                          ),
+                        );
+                      }
+                    }
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('이 링크를 열 수 없습니다: $url'),
+                          backgroundColor: AppColors.errorColor,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  print('URL 열기 오류: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('링크 형식이 올바르지 않습니다'),
+                        backgroundColor: AppColors.errorColor,
+                      ),
+                    );
+                  }
+                }
+              },
               icon: Icon(Icons.open_in_new, size: screenWidth * 0.045),
               label: Text(
                 '원문 보기',
