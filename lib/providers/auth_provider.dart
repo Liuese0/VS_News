@@ -73,6 +73,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // 닉네임 업데이트
   Future<void> updateNickname(String newNickname) async {
     try {
       await _authService.updateNickname(newNickname);
@@ -84,6 +85,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // 사용자 정보 새로고침 (refreshUserInfo와 동일)
   Future<void> refreshUserInfo() async {
     try {
       _userInfo = await _authService.getUserInfo();
@@ -92,6 +94,11 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       print('사용자 정보 새로고침 실패: $e');
     }
+  }
+
+  // 사용자 정보 로드 (refreshUserInfo의 별칭)
+  Future<void> loadUserInfo() async {
+    await refreshUserInfo();
   }
 
   // 로그아웃

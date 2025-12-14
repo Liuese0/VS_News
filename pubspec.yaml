@@ -39,7 +39,7 @@ dependencies:
 
   # 유틸리티
   intl: ^0.18.1
-  uuid: ^4.1.0
+  uuid: ^4.0.0
 
   # 애니메이션
   shimmer: ^3.0.0
@@ -49,6 +49,9 @@ dependencies:
 
   # URL 런처
   url_launcher: ^6.2.1
+
+  # Google AdMob
+  google_mobile_ads: ^5.1.0
 
 dev_dependencies:
   flutter_test:

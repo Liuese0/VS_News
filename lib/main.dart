@@ -2,9 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'providers/auth_provider.dart';
 import 'providers/news_comment_provider.dart';
 import 'providers/news_provider.dart';
+import 'services/ad_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
 import 'utils/constants.dart';
@@ -14,6 +16,12 @@ void main() async {
 
   // Firebase 초기화
   await Firebase.initializeApp();
+
+  // AdMob 초기화
+  await MobileAds.instance.initialize();
+
+  // AdService 초기화
+  await AdService().initialize();
 
   runApp(const NewsDebaterApp());
 }

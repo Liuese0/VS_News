@@ -46,11 +46,24 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 
-	<!-- URL 열기를 위한 설정 추가 -->
+	<!-- URL 열기를 위한 설정 -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>https</string>
 		<string>http</string>
+	</array>
+
+	<!-- AdMob App ID 추가 -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-6396556471310927~7758602251</string>
+
+	<!-- SKAdNetwork 추가 (광고 어트리뷰션용) -->
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
 	</array>
 </dict>
 </plist>

@@ -1,9 +1,11 @@
-// lib/screens/my_page_screen.dart (획득 기능 추가 버전)
+// lib/screens/my_page_screen.dart (AdMob 연동 버전)
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
+import '../services/ad_service.dart';
 import '../utils/constants.dart';
 import 'auth/welcome_screen.dart';
 
@@ -16,6 +18,17 @@ class MyPageScreen extends StatefulWidget {
 
 class _MyPageScreenState extends State<MyPageScreen> {
   final FirestoreService _firestoreService = FirestoreService();
+  final AuthService _authService = AuthService();
+  final AdService _adService = AdService();
+
+  bool _isLoadingAd = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 광고 미리 로드
+    _adService.preloadAd();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -681,148 +694,196 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   void _showTokenEarn(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final adStats = _adService.getAdStats();
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-        ),
-        child: Column(
-          children: [
-            // 드래그 핸들
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
             ),
-
-            // 헤더
-            Padding(
-              padding: EdgeInsets.all(screenWidth * 0.05),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.card_giftcard,
-                    color: const Color(0xFFFFD700),
-                    size: screenWidth * 0.07,
-                  ),
-                  SizedBox(width: screenWidth * 0.03),
-                  Text(
-                    '토큰 획득',
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.055,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF333333),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 광고 보기 옵션
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-              child: GestureDetector(
-                onTap: () {
-                  // 광고 시청 로직 (실제 구현 필요)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('광고 기능은 준비 중입니다'),
-                      backgroundColor: Color(0xFFFF9800),
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: EdgeInsets.all(screenWidth * 0.05),
+            child: Column(
+              children: [
+                // 드래그 핸들
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFFFF6B6B),
-                        Color(0xFFFF5252),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF6B6B).withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+
+                // 헤더
+                Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.05),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.card_giftcard,
+                        color: const Color(0xFFFFD700),
+                        size: screenWidth * 0.07,
+                      ),
+                      SizedBox(width: screenWidth * 0.03),
+                      Text(
+                        '토큰 획득',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.055,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF333333),
+                        ),
                       ),
                     ],
                   ),
-                  child: Column(
-                    children: [
-                      Row(
+                ),
+
+                // 광고 보기 옵션
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                  child: GestureDetector(
+                    onTap: _isLoadingAd ? null : () async {
+                      setModalState(() {
+                        _isLoadingAd = true;
+                      });
+
+                      await _watchRewardedAd(context);
+
+                      setModalState(() {
+                        _isLoadingAd = false;
+                      });
+                    },
+                    child: Container(
+                      padding: EdgeInsets.all(screenWidth * 0.05),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: _adService.canWatchAd
+                              ? [
+                            const Color(0xFFFF6B6B),
+                            const Color(0xFFFF5252),
+                          ]
+                              : [
+                            Colors.grey.shade400,
+                            Colors.grey.shade500,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_adService.canWatchAd
+                                ? const Color(0xFFFF6B6B)
+                                : Colors.grey)
+                                .withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
                         children: [
-                          Container(
-                            padding: EdgeInsets.all(screenWidth * 0.03),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.play_circle_filled,
-                              color: Colors.white,
-                              size: screenWidth * 0.08,
-                            ),
-                          ),
-                          SizedBox(width: screenWidth * 0.04),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '광고 보고 토큰 받기',
-                                  style: TextStyle(
-                                    fontSize: screenWidth * 0.045,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
+                          Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(screenWidth * 0.03),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                SizedBox(height: screenWidth * 0.01),
-                                Text(
-                                  '30초 광고 시청',
-                                  style: TextStyle(
-                                    fontSize: screenWidth * 0.032,
-                                    color: Colors.white70,
-                                  ),
+                                child: Icon(
+                                  _isLoadingAd
+                                      ? Icons.hourglass_empty
+                                      : Icons.play_circle_filled,
+                                  color: Colors.white,
+                                  size: screenWidth * 0.08,
                                 ),
-                              ],
-                            ),
+                              ),
+                              SizedBox(width: screenWidth * 0.04),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _isLoadingAd
+                                          ? '광고 로딩 중...'
+                                          : '광고 보고 토큰 받기',
+                                      style: TextStyle(
+                                        fontSize: screenWidth * 0.045,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    SizedBox(height: screenWidth * 0.01),
+                                    Text(
+                                      _isLoadingAd
+                                          ? '잠시만 기다려주세요'
+                                          : '30초 광고 시청',
+                                      style: TextStyle(
+                                        fontSize: screenWidth * 0.032,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: screenWidth * 0.03,
+                                  vertical: screenWidth * 0.015,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.stars,
+                                      color: const Color(0xFFFFD700),
+                                      size: screenWidth * 0.045,
+                                    ),
+                                    SizedBox(width: screenWidth * 0.01),
+                                    Text(
+                                      '+${_adService.tokensPerAd}',
+                                      style: TextStyle(
+                                        fontSize: screenWidth * 0.04,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFFFF5252),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
+                          SizedBox(height: screenWidth * 0.03),
                           Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: screenWidth * 0.03,
-                              vertical: screenWidth * 0.015,
-                            ),
+                            padding: EdgeInsets.all(screenWidth * 0.025),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  Icons.stars,
-                                  color: const Color(0xFFFFD700),
-                                  size: screenWidth * 0.045,
+                                  Icons.info_outline,
+                                  size: screenWidth * 0.04,
+                                  color: Colors.white,
                                 ),
-                                SizedBox(width: screenWidth * 0.01),
-                                Text(
-                                  '+10',
-                                  style: TextStyle(
-                                    fontSize: screenWidth * 0.04,
-                                    fontWeight: FontWeight.bold,
-                                    color: const Color(0xFFFF5252),
+                                SizedBox(width: screenWidth * 0.02),
+                                Expanded(
+                                  child: Text(
+                                    '오늘 ${adStats['remainingAds']}회 남음 (총 ${adStats['remainingAds'] * _adService.tokensPerAd}토큰)',
+                                    style: TextStyle(
+                                      fontSize: screenWidth * 0.028,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -830,238 +891,265 @@ class _MyPageScreenState extends State<MyPageScreen> {
                           ),
                         ],
                       ),
-                      SizedBox(height: screenWidth * 0.03),
-                      Container(
-                        padding: EdgeInsets.all(screenWidth * 0.025),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+
+                // 절취선
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.05,
+                    vertical: screenWidth * 0.05,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.transparent,
+                                Colors.grey.shade300,
+                              ],
+                            ),
+                          ),
                         ),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
                         child: Row(
                           children: [
                             Icon(
-                              Icons.info_outline,
+                              Icons.content_cut,
                               size: screenWidth * 0.04,
-                              color: Colors.white,
+                              color: Colors.grey.shade400,
                             ),
                             SizedBox(width: screenWidth * 0.02),
-                            Expanded(
-                              child: Text(
-                                '하루 5회 시청 가능 (총 50토큰)',
-                                style: TextStyle(
-                                  fontSize: screenWidth * 0.028,
-                                  color: Colors.white,
-                                ),
+                            Text(
+                              '또는',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.032,
+                                color: Colors.grey.shade600,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // 절취선
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: screenWidth * 0.05,
-                vertical: screenWidth * 0.05,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 1,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.transparent,
-                            Colors.grey.shade300,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.content_cut,
-                          size: screenWidth * 0.04,
-                          color: Colors.grey.shade400,
-                        ),
-                        SizedBox(width: screenWidth * 0.02),
-                        Text(
-                          '또는',
-                          style: TextStyle(
-                            fontSize: screenWidth * 0.032,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        SizedBox(width: screenWidth * 0.02),
-                        Icon(
-                          Icons.content_cut,
-                          size: screenWidth * 0.04,
-                          color: Colors.grey.shade400,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      height: 1,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.grey.shade300,
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 캐시 충전 옵션
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-              child: GestureDetector(
-                onTap: () {
-                  // 캐시 충전 로직 (실제 구현 필요)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('캐시 충전 기능은 준비 중입니다'),
-                      backgroundColor: Color(0xFFFF9800),
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: EdgeInsets.all(screenWidth * 0.05),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF4CAF50),
-                        Color(0xFF45A049),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF4CAF50).withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(screenWidth * 0.03),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(12),
+                            SizedBox(width: screenWidth * 0.02),
+                            Icon(
+                              Icons.content_cut,
+                              size: screenWidth * 0.04,
+                              color: Colors.grey.shade400,
                             ),
-                            child: Icon(
-                              Icons.account_balance_wallet,
-                              color: Colors.white,
-                              size: screenWidth * 0.08,
-                            ),
-                          ),
-                          SizedBox(width: screenWidth * 0.04),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '캐시로 토큰 구매',
-                                  style: TextStyle(
-                                    fontSize: screenWidth * 0.045,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                SizedBox(height: screenWidth * 0.01),
-                                Text(
-                                  '다양한 패키지 제공',
-                                  style: TextStyle(
-                                    fontSize: screenWidth * 0.032,
-                                    color: Colors.white70,
-                                  ),
-                                ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.grey.shade300,
+                                Colors.transparent,
                               ],
                             ),
                           ),
-                          Icon(
-                            Icons.arrow_forward_ios,
-                            color: Colors.white,
-                            size: screenWidth * 0.05,
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: screenWidth * 0.03),
-                      Container(
-                        padding: EdgeInsets.all(screenWidth * 0.025),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildCashPackage('100토큰', '₩1,000', screenWidth),
-                            Container(
-                              width: 1,
-                              height: screenWidth * 0.08,
-                              color: Colors.white.withOpacity(0.3),
-                            ),
-                            _buildCashPackage('500토큰', '₩4,500', screenWidth),
-                            Container(
-                              width: 1,
-                              height: screenWidth * 0.08,
-                              color: Colors.white.withOpacity(0.3),
-                            ),
-                            _buildCashPackage('1000토큰', '₩8,000', screenWidth),
-                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
 
-            const Spacer(),
-
-            // 닫기 버튼
-            Padding(
-              padding: EdgeInsets.all(screenWidth * 0.05),
-              child: SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
-                  ),
-                  child: Text(
-                    '닫기',
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.04,
-                      color: Colors.grey.shade600,
+                // 캐시 충전 옵션
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                  child: GestureDetector(
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('캐시 충전 기능은 준비 중입니다'),
+                          backgroundColor: Color(0xFFFF9800),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: EdgeInsets.all(screenWidth * 0.05),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF4CAF50),
+                            Color(0xFF45A049),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF4CAF50).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(screenWidth * 0.03),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  Icons.account_balance_wallet,
+                                  color: Colors.white,
+                                  size: screenWidth * 0.08,
+                                ),
+                              ),
+                              SizedBox(width: screenWidth * 0.04),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '캐시로 토큰 구매',
+                                      style: TextStyle(
+                                        fontSize: screenWidth * 0.045,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    SizedBox(height: screenWidth * 0.01),
+                                    Text(
+                                      '다양한 패키지 제공',
+                                      style: TextStyle(
+                                        fontSize: screenWidth * 0.032,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                color: Colors.white,
+                                size: screenWidth * 0.05,
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: screenWidth * 0.03),
+                          Container(
+                            padding: EdgeInsets.all(screenWidth * 0.025),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _buildCashPackage('100토큰', '₩1,000', screenWidth),
+                                Container(
+                                  width: 1,
+                                  height: screenWidth * 0.08,
+                                  color: Colors.white.withOpacity(0.3),
+                                ),
+                                _buildCashPackage('500토큰', '₩4,500', screenWidth),
+                                Container(
+                                  width: 1,
+                                  height: screenWidth * 0.08,
+                                  color: Colors.white.withOpacity(0.3),
+                                ),
+                                _buildCashPackage('1000토큰', '₩8,000', screenWidth),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+
+                const Spacer(),
+
+                // 닫기 버튼
+                Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.05),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                      ),
+                      child: Text(
+                        '닫기',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.04,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
+    );
+  }
+
+  // 광고 시청 로직
+  Future<void> _watchRewardedAd(BuildContext context) async {
+    final authProvider = context.read<AuthProvider>();
+
+    await _adService.showRewardedAd(
+      onRewarded: (tokens) async {
+        // 토큰 지급
+        try {
+          await _authService.incrementTokens(tokens);
+          await authProvider.loadUserInfo();
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.stars, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text('$tokens 토큰을 획득했습니다!'),
+                  ],
+                ),
+                backgroundColor: const Color(0xFF4CAF50),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+
+            // 모달 닫기
+            Navigator.pop(context);
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('토큰 지급 중 오류가 발생했습니다: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      },
+      onError: (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error),
+              backgroundColor: const Color(0xFFFF9800),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
     );
   }
 
