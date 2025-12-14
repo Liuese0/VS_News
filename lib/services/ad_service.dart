@@ -10,7 +10,11 @@ class AdService {
   AdService._internal();
 
   RewardedAd? _rewardedAd;
+  BannerAd? _bannerAd;
+  BannerAd? _exploreBannerAd;  // ExploreScreen 전용 배너
   bool _isAdLoaded = false;
+  bool _isBannerAdLoaded = false;
+  bool _isExploreBannerAdLoaded = false;
   int _dailyAdCount = 0;
   static const int _maxDailyAds = 5;
   static const int _tokensPerAd = 10;
@@ -35,11 +39,33 @@ class AdService {
     return '';
   }
 
+  // 배너 광고 ID
+  static String get _bannerAdUnitId {
+    if (kDebugMode) {
+      // 테스트 광고 ID
+      if (Platform.isAndroid) {
+        return 'ca-app-pub-3940256099942544/6300978111'; // Android 테스트 배너 광고
+      } else if (Platform.isIOS) {
+        return 'ca-app-pub-3940256099942544/2934735716'; // iOS 테스트 배너 광고
+      }
+    } else {
+      // 실제 광고 ID (여기에 실제 AdMob ID를 입력하세요)
+      if (Platform.isAndroid) {
+        return 'ca-app-pub-6396556471310927/XXXXXXXXXX'; // TODO: 실제 Android 배너 광고 ID로 변경
+      } else if (Platform.isIOS) {
+        return 'ca-app-pub-6396556471310927/XXXXXXXXXX'; // TODO: 실제 iOS 배너 광고 ID로 변경
+      }
+    }
+    return '';
+  }
+
   /// AdMob 초기화
   Future<void> initialize() async {
     await MobileAds.instance.initialize();
     await _loadDailyAdCount();
     _loadRewardedAd();
+    _loadBannerAd();
+    _loadExploreBannerAd();
   }
 
   /// 오늘 시청한 광고 개수 로드
@@ -73,6 +99,74 @@ class AdService {
 
   /// 광고당 토큰
   int get tokensPerAd => _tokensPerAd;
+
+  /// 배너 광고 로드 여부
+  bool get isBannerAdLoaded => _isBannerAdLoaded;
+
+  /// 배너 광고 가져오기
+  BannerAd? get bannerAd => _bannerAd;
+
+  /// ExploreScreen 전용 배너 광고 로드 여부
+  bool get isExploreBannerAdLoaded => _isExploreBannerAdLoaded;
+
+  /// ExploreScreen 전용 배너 광고 가져오기
+  BannerAd? get exploreBannerAd => _exploreBannerAd;
+
+  /// 배너 광고 로드
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: _bannerAdUnitId,
+      size: AdSize.banner, // 320x50
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          _isBannerAdLoaded = true;
+          print('배너 광고 로드 성공');
+        },
+        onAdFailedToLoad: (ad, error) {
+          print('배너 광고 로드 실패: $error');
+          _isBannerAdLoaded = false;
+          ad.dispose();
+          _bannerAd = null;
+
+          // 30초 후 재시도
+          Future.delayed(const Duration(seconds: 30), () {
+            _loadBannerAd();
+          });
+        },
+      ),
+    );
+
+    _bannerAd!.load();
+  }
+
+  /// ExploreScreen 전용 배너 광고 로드
+  void _loadExploreBannerAd() {
+    _exploreBannerAd = BannerAd(
+      adUnitId: _bannerAdUnitId,
+      size: AdSize.banner, // 320x50
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          _isExploreBannerAdLoaded = true;
+          print('ExploreScreen 배너 광고 로드 성공');
+        },
+        onAdFailedToLoad: (ad, error) {
+          print('ExploreScreen 배너 광고 로드 실패: $error');
+          _isExploreBannerAdLoaded = false;
+          ad.dispose();
+          _exploreBannerAd = null;
+
+          // 30초 후 재시도
+          Future.delayed(const Duration(seconds: 30), () {
+            _loadExploreBannerAd();
+          });
+        },
+      ),
+    );
+
+    _exploreBannerAd!.load();
+  }
 
   /// 보상형 광고 로드
   void _loadRewardedAd() {
@@ -185,6 +279,12 @@ class AdService {
     if (!_isAdLoaded) {
       _loadRewardedAd();
     }
+    if (!_isBannerAdLoaded) {
+      _loadBannerAd();
+    }
+    if (!_isExploreBannerAdLoaded) {
+      _loadExploreBannerAd();
+    }
   }
 
   /// 리소스 정리
@@ -192,6 +292,14 @@ class AdService {
     _rewardedAd?.dispose();
     _rewardedAd = null;
     _isAdLoaded = false;
+
+    _bannerAd?.dispose();
+    _bannerAd = null;
+    _isBannerAdLoaded = false;
+
+    _exploreBannerAd?.dispose();
+    _exploreBannerAd = null;
+    _isExploreBannerAdLoaded = false;
   }
 
   /// 광고 통계 정보
@@ -203,6 +311,8 @@ class AdService {
       'tokensPerAd': _tokensPerAd,
       'isAdLoaded': _isAdLoaded,
       'canWatchAd': canWatchAd,
+      'isBannerAdLoaded': _isBannerAdLoaded,
+      'isExploreBannerAdLoaded': _isExploreBannerAdLoaded,
     };
   }
 }

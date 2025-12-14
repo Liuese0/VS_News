@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../providers/auth_provider.dart';
 import '../providers/news_comment_provider.dart';
 import '../screens/news_explorer_screen.dart';
 import '../screens/auth/welcome_screen.dart';
 import '../utils/constants.dart';
 import '../services/firestore_service.dart';
+import '../services/ad_service.dart';
 import '../providers/news_provider.dart';
 import 'my_page_screen.dart';
 
@@ -22,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
   final FirestoreService _firestoreService = FirestoreService();
+  final AdService _adService = AdService();
 
   List<NewsDiscussionItem> _popularNews = [];
   List<NewsDiscussionItem> _favoriteNews = [];
@@ -220,9 +223,47 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _buildStatsCards(),
           _buildQuickActions(),
           _buildSectionTitle(),
+
+          // 배너 광고 삽입 (섹션 타이틀과 콘텐츠 사이)
+          _buildBannerAd(),
+
           _buildContentByTab(),
           const SizedBox(height: 20),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBannerAd() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    if (!_adService.isBannerAdLoaded || _adService.bannerAd == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: EdgeInsets.symmetric(
+        horizontal: screenWidth * 0.05,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFF0F0F0)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 50,
+          child: AdWidget(ad: _adService.bannerAd!),
+        ),
       ),
     );
   }
@@ -546,9 +587,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _buildNewsCard(entry.value, entry.key, isNewsMode: true)).toList(),
     );
   }
-
-  // home_screen.dart의 _buildFavoriteNewsList 메서드 수정본
-  // (개수에 따라 색상이 변하는 버전)
 
   Widget _buildFavoriteNewsList() {
     if (_favoriteNews.isEmpty) {
@@ -992,8 +1030,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  // home_screen.dart의 _toggleFavorite 메서드 수정본
-
   Future<void> _toggleFavorite(NewsDiscussionItem news) async {
     try {
       if (_favoriteNewsUrls.contains(news.newsUrl)) {
@@ -1048,8 +1084,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
   }
-
-// home_screen.dart의 _buildBottomNavigation 메서드 수정본
 
   Widget _buildBottomNavigation() {
     final screenWidth = MediaQuery.of(context).size.width;

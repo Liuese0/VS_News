@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../models/models.dart';
 import '../services/news_auto_service.dart';
 import '../services/firestore_service.dart';
+import '../services/ad_service.dart';
 import '../utils/constants.dart';
 import '../providers/auth_provider.dart';
 import '../providers/news_comment_provider.dart';
@@ -23,6 +25,7 @@ class _ExploreScreenState extends State<ExploreScreen>
     with SingleTickerProviderStateMixin {
   final NewsAutoService _newsService = NewsAutoService();
   final FirestoreService _firestoreService = FirestoreService();
+  final AdService _adService = AdService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -51,6 +54,9 @@ class _ExploreScreenState extends State<ExploreScreen>
   @override
   void initState() {
     super.initState();
+
+    // 광고 미리 로드
+    _adService.preloadAd();
 
     _appBarAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -209,7 +215,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     final screenWidth = MediaQuery.of(context).size.width;
-    final appBarContentHeight = screenWidth * 0.8;
+    final appBarContentHeight = screenWidth * 0.55;  // 0.8에서 0.55로 감소
     final totalAppBarHeight = topPadding + appBarContentHeight;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -463,6 +469,42 @@ class _ExploreScreenState extends State<ExploreScreen>
     );
   }
 
+  Widget _buildBannerAd() {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    if (!_adService.isExploreBannerAdLoaded || _adService.exploreBannerAd == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: EdgeInsets.only(
+        left: screenWidth * 0.05,
+        right: screenWidth * 0.05,
+        top: 45,                      // 상단바와 겹치지 않도록 여백 추가
+        bottom: 10,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFF0F0F0)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 50,
+          child: AdWidget(ad: _adService.exploreBannerAd!),
+        ),
+      ),
+    );
+  }
+
   Widget _buildNewsList() {
     if (_newsList.isEmpty) {
       return _buildEmptyState();
@@ -475,10 +517,21 @@ class _ExploreScreenState extends State<ExploreScreen>
       color: const Color(0xD66B7280),
       child: ListView.builder(
         controller: _scrollController,
-        padding: EdgeInsets.all(screenWidth * 0.05),
-        itemCount: _newsList.length,
+        padding: EdgeInsets.only(
+          left: screenWidth * 0.05,
+          right: screenWidth * 0.05,
+          top: 0,                       // 상단 패딩 완전히 제거
+          bottom: screenWidth * 0.05,
+        ),
+        itemCount: _newsList.length + 1, // +1 for banner ad
         itemBuilder: (context, index) {
-          return _buildNewsCard(_newsList[index], index);
+          // 배너 광고를 첫 번째 아이템으로 표시
+          if (index == 0) {
+            return _buildBannerAd();
+          }
+
+          // 실제 뉴스 아이템 (index - 1)
+          return _buildNewsCard(_newsList[index - 1], index - 1);
         },
       ),
     );
@@ -815,8 +868,6 @@ class _ExploreScreenState extends State<ExploreScreen>
       ],
     );
   }
-
-  // news_explorer_screen.dart의 _toggleFavorite 메서드 수정본
 
   Future<void> _toggleFavorite(AutoCollectedNews news) async {
     final newsUrl = news.url;
