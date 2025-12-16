@@ -13,7 +13,7 @@ class FirestoreService {
 
   // ========== 로컬 캐시 ==========
   final Map<String, _NewsStats> _statsCache = {};
-  final Duration _cacheDuration = const Duration(minutes: 5);
+  final Duration _cacheDuration = const Duration(hours: 1); // 5분 → 1시간으로 연장
 
   // ========== 댓글 제한 확인 ==========
 
@@ -588,18 +588,27 @@ class FirestoreService {
     return result;
   }
 
-  // ========== 인기 토론 ==========
+  // ========== 인기 토론 (페이지네이션 추가) ==========
 
-  /// 인기 토론 가져오기 (commentCount 기준 정렬)
-  Future<List<Map<String, dynamic>>> getPopularDiscussions({int limit = 20}) async {
-    final snapshot = await _firestore
+  /// 인기 토론 가져오기 (commentCount 기준 정렬, 페이지네이션 지원)
+  Future<Map<String, dynamic>> getPopularDiscussions({
+    int limit = 10, // 페이지당 10개로 변경
+    DocumentSnapshot? lastDocument,
+  }) async {
+    Query query = _firestore
         .collection('newsStats')
         .orderBy('commentCount', descending: true)
-        .limit(limit)
-        .get();
+        .limit(limit);
 
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
+    // 페이지네이션: 마지막 문서부터 시작
+    if (lastDocument != null) {
+      query = query.startAfterDocument(lastDocument);
+    }
+
+    final snapshot = await query.get();
+
+    final discussions = snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
       return {
         'newsUrl': data['newsUrl'] ?? '',
         'commentCount': data['commentCount'] ?? 0,
@@ -611,6 +620,12 @@ class FirestoreService {
         'source': data['source'] ?? '뉴스',
       };
     }).toList();
+
+    return {
+      'discussions': discussions,
+      'lastDocument': snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+      'hasMore': snapshot.docs.length == limit,
+    };
   }
 
   /// 사용자가 참여한 토론 가져오기
@@ -668,5 +683,5 @@ class _NewsStats {
   });
 
   bool get isExpired =>
-      DateTime.now().difference(fetchedAt) > const Duration(minutes: 5);
+      DateTime.now().difference(fetchedAt) > const Duration(hours: 1); // 1시간으로 변경
 }

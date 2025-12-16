@@ -40,7 +40,13 @@ class _ExploreScreenState extends State<ExploreScreen>
   int _selectedTab = 0;
   List<AutoCollectedNews> _newsList = [];
   bool _isLoading = false;
+  bool _isLoadingMore = false;
   Set<String> _favoriteNewsIds = <String>{};
+
+  // 페이지네이션
+  DocumentSnapshot? _lastDocument;
+  bool _hasMore = true;
+  static const int _pageSize = 10;
 
   final List<Map<String, dynamic>> _categories = [
     {'name': '인기', 'icon': '🔥'},
@@ -91,6 +97,7 @@ class _ExploreScreenState extends State<ExploreScreen>
     final currentScrollOffset = _scrollController.offset;
     const scrollThreshold = 50.0;
 
+    // AppBar 숨김/표시 로직
     if (currentScrollOffset > _lastScrollOffset &&
         currentScrollOffset > scrollThreshold) {
       if (_isAppBarVisible) {
@@ -105,6 +112,14 @@ class _ExploreScreenState extends State<ExploreScreen>
     }
 
     _lastScrollOffset = currentScrollOffset;
+
+    // 페이지네이션: 스크롤이 80% 이상 도달하면 다음 페이지 로드
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent * 0.8) {
+      if (!_isLoadingMore && _hasMore && _selectedCategory == '인기') {
+        _loadMorePopularNews();
+      }
+    }
   }
 
   Future<void> _loadFavorites() async {
@@ -123,7 +138,12 @@ class _ExploreScreenState extends State<ExploreScreen>
   Future<void> _loadNews() async {
     if (_isLoading) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _newsList.clear();
+      _lastDocument = null;
+      _hasMore = true;
+    });
 
     try {
       if (_selectedCategory == '인기') {
@@ -134,7 +154,7 @@ class _ExploreScreenState extends State<ExploreScreen>
 
         if (mounted) {
           setState(() {
-            _newsList = newsList;
+            _newsList = newsList.take(_pageSize).toList();
           });
         }
       }
@@ -156,15 +176,24 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Future<void> _loadPopularNews() async {
     try {
-      final popularDiscussions = await _firestoreService.getPopularDiscussions(limit: 10);
+      final result = await _firestoreService.getPopularDiscussions(
+        limit: _pageSize,
+        lastDocument: null,
+      );
+
+      final popularDiscussions = result['discussions'] as List<Map<String, dynamic>>;
+      _lastDocument = result['lastDocument'] as DocumentSnapshot?;
+      _hasMore = result['hasMore'] as bool;
 
       if (popularDiscussions.isEmpty) {
+        // 인기 뉴스가 없으면 일반 뉴스 표시
         final newsProvider = context.read<NewsProvider>();
         final newsList = await newsProvider.loadNews(category: '전체');
 
         if (mounted) {
           setState(() {
-            _newsList = newsList.take(10).toList();
+            _newsList = newsList.take(_pageSize).toList();
+            _hasMore = false;
           });
         }
         return;
@@ -179,12 +208,14 @@ class _ExploreScreenState extends State<ExploreScreen>
         var news = newsProvider.getNewsByUrl(newsUrl);
 
         if (news == null) {
+          // 뉴스 메타데이터가 newsStats에 저장되어 있음
           news = AutoCollectedNews(
             title: discussion['title'] ?? '제목 없음',
-            description: '자세한 내용을 보려면 클릭하세요',
+            description: discussion['description'] ?? '자세한 내용을 보려면 클릭하세요',
             url: newsUrl,
-            source: '뉴스 소스',
-            publishedAt: DateTime.now(),
+            source: discussion['source'] ?? '뉴스',
+            imageUrl: discussion['imageUrl'],
+            publishedAt: (discussion['lastCommentTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
             autoCategory: '인기',
             autoTags: [],
           );
@@ -200,13 +231,73 @@ class _ExploreScreenState extends State<ExploreScreen>
       }
     } catch (e) {
       print('인기 뉴스 로드 실패: $e');
+      // 실패 시 일반 뉴스로 대체
       final newsProvider = context.read<NewsProvider>();
       final newsList = await newsProvider.loadNews(category: '전체');
 
       if (mounted) {
         setState(() {
-          _newsList = newsList.take(10).toList();
+          _newsList = newsList.take(_pageSize).toList();
+          _hasMore = false;
         });
+      }
+    }
+  }
+
+  Future<void> _loadMorePopularNews() async {
+    if (_isLoadingMore || !_hasMore || _lastDocument == null) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final result = await _firestoreService.getPopularDiscussions(
+        limit: _pageSize,
+        lastDocument: _lastDocument,
+      );
+
+      final popularDiscussions = result['discussions'] as List<Map<String, dynamic>>;
+      _lastDocument = result['lastDocument'] as DocumentSnapshot?;
+      _hasMore = result['hasMore'] as bool;
+
+      if (popularDiscussions.isEmpty) {
+        setState(() => _hasMore = false);
+        return;
+      }
+
+      final newsProvider = context.read<NewsProvider>();
+      List<AutoCollectedNews> additionalNews = [];
+
+      for (var discussion in popularDiscussions) {
+        final newsUrl = discussion['newsUrl'] as String;
+
+        var news = newsProvider.getNewsByUrl(newsUrl);
+
+        if (news == null) {
+          news = AutoCollectedNews(
+            title: discussion['title'] ?? '제목 없음',
+            description: discussion['description'] ?? '자세한 내용을 보려면 클릭하세요',
+            url: newsUrl,
+            source: discussion['source'] ?? '뉴스',
+            imageUrl: discussion['imageUrl'],
+            publishedAt: (discussion['lastCommentTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            autoCategory: '인기',
+            autoTags: [],
+          );
+        }
+
+        additionalNews.add(news);
+      }
+
+      if (mounted) {
+        setState(() {
+          _newsList.addAll(additionalNews);
+        });
+      }
+    } catch (e) {
+      print('추가 뉴스 로드 실패: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
       }
     }
   }
@@ -215,7 +306,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     final screenWidth = MediaQuery.of(context).size.width;
-    final appBarContentHeight = screenWidth * 0.55;  // 0.8에서 0.55로 감소
+    final appBarContentHeight = screenWidth * 0.55;
     final totalAppBarHeight = topPadding + appBarContentHeight;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -247,7 +338,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                 )
                     : _buildNewsList(),
               ),
-
               SlideTransition(
                 position: _appBarSlideAnimation,
                 child: _buildAnimatedAppBar(),
@@ -335,7 +425,6 @@ class _ExploreScreenState extends State<ExploreScreen>
             ],
           ),
           SizedBox(height: screenWidth * 0.035),
-
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -364,7 +453,6 @@ class _ExploreScreenState extends State<ExploreScreen>
             ),
           ),
           SizedBox(height: screenWidth * 0.035),
-
           Row(
             children: [
               Expanded(
@@ -377,7 +465,6 @@ class _ExploreScreenState extends State<ExploreScreen>
             ],
           ),
           SizedBox(height: screenWidth * 0.035),
-
           SizedBox(
             height: screenWidth * 0.095,
             child: ListView.builder(
@@ -480,7 +567,7 @@ class _ExploreScreenState extends State<ExploreScreen>
       margin: EdgeInsets.only(
         left: screenWidth * 0.05,
         right: screenWidth * 0.05,
-        top: 45,                      // 상단바와 겹치지 않도록 여백 추가
+        top: 45,
         bottom: 10,
       ),
       decoration: BoxDecoration(
@@ -520,14 +607,42 @@ class _ExploreScreenState extends State<ExploreScreen>
         padding: EdgeInsets.only(
           left: screenWidth * 0.05,
           right: screenWidth * 0.05,
-          top: 0,                       // 상단 패딩 완전히 제거
+          top: 0,
           bottom: screenWidth * 0.05,
         ),
-        itemCount: _newsList.length + 1, // +1 for banner ad
+        itemCount: _newsList.length + 2, // +1 배너 광고, +1 로딩 인디케이터
         itemBuilder: (context, index) {
           // 배너 광고를 첫 번째 아이템으로 표시
           if (index == 0) {
             return _buildBannerAd();
+          }
+
+          // 로딩 인디케이터를 마지막에 표시
+          if (index == _newsList.length + 1) {
+            if (_isLoadingMore) {
+              return Padding(
+                padding: EdgeInsets.symmetric(vertical: screenWidth * 0.05),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xD66B7280)),
+                  ),
+                ),
+              );
+            } else if (!_hasMore && _selectedCategory == '인기') {
+              return Padding(
+                padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                child: Center(
+                  child: Text(
+                    '모든 인기 뉴스를 불러왔습니다',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.032,
+                      color: const Color(0xFF999999),
+                    ),
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
           }
 
           // 실제 뉴스 아이템 (index - 1)
@@ -659,7 +774,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                   },
                 ),
               ),
-
             Padding(
               padding: EdgeInsets.all(screenWidth * 0.035),
               child: Column(
@@ -723,7 +837,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                     ],
                   ),
                   SizedBox(height: screenWidth * 0.03),
-
                   if (_selectedCategory == '인기' && index < 3)
                     Container(
                       margin: EdgeInsets.only(bottom: screenWidth * 0.02),
@@ -762,7 +875,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                         ],
                       ),
                     ),
-
                   Text(
                     news.title,
                     style: TextStyle(
@@ -775,7 +887,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                     overflow: TextOverflow.ellipsis,
                   ),
                   SizedBox(height: screenWidth * 0.02),
-
                   if (news.description.isNotEmpty)
                     Text(
                       news.description,
@@ -788,7 +899,6 @@ class _ExploreScreenState extends State<ExploreScreen>
                       overflow: TextOverflow.ellipsis,
                     ),
                   SizedBox(height: screenWidth * 0.035),
-
                   Row(
                     children: [
                       Flexible(
@@ -885,7 +995,6 @@ class _ExploreScreenState extends State<ExploreScreen>
           );
         }
       } else {
-        // 10개 제한 체크 - 서버에서 처리되지만 UI에서 미리 체크
         if (_favoriteNewsIds.length >= 10) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -957,7 +1066,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   }
 }
 
-// ========== 뉴스 상세 + 토론 바텀시트 ==========
+// ========== 뉴스 상세 + 토론 바텀시트 (이전과 동일) ==========
 
 class NewsDetailWithDiscussion extends StatefulWidget {
   final AutoCollectedNews news;
@@ -981,7 +1090,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   bool _isSubmittingComment = false;
   bool _showCommentInput = false;
 
-  // 대댓글 작성 관련
   String? _replyingToCommentId;
   String? _replyingToNickname;
 
@@ -1008,12 +1116,11 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         _comments = commentsData.map((data) {
           final createdAt = data['createdAt'];
 
-          // 대댓글 목록 변환
           final repliesData = data['replies'] as List<dynamic>? ?? [];
           final replies = repliesData.map((replyData) {
             final replyCreatedAt = replyData['createdAt'];
             return NewsComment(
-              id: replyData['id'],  // 실제 문서 ID 사용
+              id: replyData['id'],
               newsUrl: widget.news.url,
               nickname: replyData['nickname'] ?? '익명',
               stance: replyData['stance'] ?? 'pro',
@@ -1028,7 +1135,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
           }).toList();
 
           return NewsComment(
-            id: data['id'],  // 실제 문서 ID 사용
+            id: data['id'],
             newsUrl: widget.news.url,
             nickname: data['nickname'] ?? '익명',
             stance: data['stance'] ?? 'pro',
@@ -1147,7 +1254,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ),
           ),
           SizedBox(height: screenWidth * 0.04),
-
           Text(
             widget.news.title,
             style: TextStyle(
@@ -1158,7 +1264,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ),
           ),
           SizedBox(height: screenWidth * 0.03),
-
           Row(
             children: [
               Container(
@@ -1199,7 +1304,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ],
           ),
           SizedBox(height: screenWidth * 0.05),
-
           Text(
             widget.news.description,
             style: TextStyle(
@@ -1209,7 +1313,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ),
           ),
           SizedBox(height: screenWidth * 0.06),
-
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -1324,7 +1427,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ],
           ),
           SizedBox(height: screenWidth * 0.05),
-
           if (_userVote != null) ...[
             Container(
               padding: EdgeInsets.all(screenWidth * 0.04),
@@ -1365,7 +1467,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                     ],
                   ),
                   SizedBox(height: screenWidth * 0.04),
-
                   Row(
                     children: [
                       Expanded(
@@ -1402,7 +1503,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                     ],
                   ),
                   SizedBox(height: screenWidth * 0.03),
-
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -1464,7 +1564,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               ),
             ),
             SizedBox(height: screenWidth * 0.03),
-
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -1507,7 +1606,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               ],
             ),
             SizedBox(height: screenWidth * 0.04),
-
             Container(
               padding: EdgeInsets.all(screenWidth * 0.03),
               decoration: BoxDecoration(
@@ -1633,8 +1731,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ],
           ),
           SizedBox(height: screenWidth * 0.03),
-
-          // 일일 댓글 제한 표시
           FutureBuilder<int>(
             future: FirestoreService().getTodayCommentCount(),
             builder: (context, snapshot) {
@@ -1712,7 +1808,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               );
             },
           ),
-
           if (_showCommentInput) ...[
             if (_replyingToCommentId != null)
               _buildCommentInput(
@@ -1723,7 +1818,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               _buildCommentInput(),
             SizedBox(height: screenWidth * 0.06),
           ],
-
           if (_comments.isEmpty)
             _buildEmptyComments()
           else
@@ -1821,7 +1915,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ],
           ),
           SizedBox(height: screenWidth * 0.03),
-
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (context, value, child) {
@@ -1913,7 +2006,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             },
           ),
           SizedBox(height: screenWidth * 0.03),
-
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -1986,7 +2078,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 부모 댓글
           Container(
             padding: EdgeInsets.all(screenWidth * 0.04),
             decoration: BoxDecoration(
@@ -2075,8 +2166,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   ),
                 ),
                 SizedBox(height: screenWidth * 0.025),
-
-                // 답글 버튼
                 Row(
                   children: [
                     if (comment.replyCount > 0)
@@ -2114,7 +2203,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                           ? null
                           : () {
                         setState(() {
-                          _replyingToCommentId = comment.id;  // 이미 String인 실제 문서 ID
+                          _replyingToCommentId = comment.id;
                           _replyingToNickname = comment.nickname;
                         });
                       },
@@ -2139,8 +2228,6 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               ],
             ),
           ),
-
-          // 대댓글 목록
           if (comment.replies.isNotEmpty)
             Padding(
               padding: EdgeInsets.only(
@@ -2463,7 +2550,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 }
 
 class NewsComment {
-  final String id;  // Firestore 문서 ID
+  final String id;
   final String newsUrl;
   final String nickname;
   final String stance;

@@ -34,15 +34,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _selectedQuickTab = 0;
   bool _isLoading = false;
   bool _isRefreshing = false;
+  bool _isLoadingMore = false;
   Set<String> _favoriteNewsUrls = {};
+
+  // 페이지네이션
+  DocumentSnapshot? _lastPopularDocument;
+  bool _hasMorePopular = true;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
+  }
+
+  void _onScroll() {
+    // 무한 스크롤: 인기 탭에서만, 스크롤이 80% 도달 시 추가 로드
+    if (_selectedQuickTab == 0 &&
+        !_isLoadingMore &&
+        _hasMorePopular &&
+        _scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent * 0.8) {
+      _loadMorePopularNews();
+    }
   }
 
   Future<void> _loadData() async {
@@ -51,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final newsCommentProvider = context.read<NewsCommentProvider>();
 
+      // 1. 즐겨찾기 + 통계 (단일 쿼리로 최적화됨)
       final favoritesWithStats = await _firestoreService.getUserFavoritesWithStats();
       _favoriteNewsUrls = favoritesWithStats.map((f) => f['newsUrl'] as String).toSet();
 
@@ -73,7 +91,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       }).toList();
 
-      final popularData = await _firestoreService.getPopularDiscussions(limit: 20);
+      // 2. 인기 토론 (페이지네이션)
+      final popularResult = await _firestoreService.getPopularDiscussions(limit: 20);
+      final popularData = popularResult['discussions'] as List<Map<String, dynamic>>;
+      _lastPopularDocument = popularResult['lastDocument'];
+      _hasMorePopular = popularResult['hasMore'] as bool;
 
       _popularNews = popularData.map((data) {
         final lastCommentTime = data['lastCommentTime'];
@@ -91,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       }).toList();
 
+      // 3. 참여한 토론
       await newsCommentProvider.loadParticipatedDiscussions();
       final participatedUrls = newsCommentProvider.participatedNewsUrls.toSet();
 
@@ -102,22 +125,86 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     } catch (e) {
       print('데이터 로딩 오류: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('데이터를 불러오는 중 오류가 발생했습니다: $e'),
+            backgroundColor: AppColors.errorColor,
+          ),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _loadMorePopularNews() async {
+    if (_isLoadingMore || !_hasMorePopular) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final popularResult = await _firestoreService.getPopularDiscussions(
+        limit: 10,
+        lastDocument: _lastPopularDocument,
+      );
+
+      final popularData = popularResult['discussions'] as List<Map<String, dynamic>>;
+      _lastPopularDocument = popularResult['lastDocument'];
+      _hasMorePopular = popularResult['hasMore'] as bool;
+
+      final newItems = popularData.map((data) {
+        final lastCommentTime = data['lastCommentTime'];
+        return NewsDiscussionItem(
+          newsUrl: data['newsUrl'] ?? '',
+          title: data['title'] ?? '제목 없음',
+          participantCount: data['participantCount'] ?? 0,
+          commentCount: data['commentCount'] ?? 0,
+          lastCommentTime: lastCommentTime is Timestamp
+              ? lastCommentTime.toDate()
+              : DateTime.now(),
+          description: data['description'] ?? '자세한 내용을 보려면 탭하세요',
+          imageUrl: data['imageUrl'],
+          source: data['source'] ?? '뉴스',
+        );
+      }).toList();
+
+      setState(() {
+        _popularNews.addAll(newItems);
+      });
+
+      print('추가 로드 완료: +${newItems.length}개, 총 ${_popularNews.length}개');
+    } catch (e) {
+      print('추가 로딩 오류: $e');
+    } finally {
+      setState(() => _isLoadingMore = false);
     }
   }
 
   Future<void> _onRefresh() async {
     setState(() => _isRefreshing = true);
+
+    // 캐시 초기화
+    _firestoreService.clearCache();
+
+    // 페이지네이션 초기화
+    _lastPopularDocument = null;
+    _hasMorePopular = true;
+    _popularNews.clear();
+
     await _loadData();
-    setState(() => _isRefreshing = false);
+
+    if (mounted) {
+      setState(() => _isRefreshing = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -223,11 +310,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _buildStatsCards(),
           _buildQuickActions(),
           _buildSectionTitle(),
-
-          // 배너 광고 삽입 (섹션 타이틀과 콘텐츠 사이)
           _buildBannerAd(),
-
           _buildContentByTab(),
+
+          // 로딩 인디케이터 (인기 탭에서만)
+          if (_selectedQuickTab == 0 && _isLoadingMore)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xD66B7280)),
+                ),
+              ),
+            ),
+
+          // "더 이상 없음" 메시지
+          if (_selectedQuickTab == 0 && !_hasMorePopular && _popularNews.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: Text(
+                  '모든 인기 뉴스를 확인했습니다',
+                  style: TextStyle(
+                    color: const Color(0xFF999999),
+                    fontSize: MediaQuery.of(context).size.width * 0.035,
+                  ),
+                ),
+              ),
+            ),
+
           const SizedBox(height: 20),
         ],
       ),
@@ -599,26 +710,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final screenWidth = MediaQuery.of(context).size.width;
     final favoriteCount = _favoriteNews.length;
 
-    // 개수에 따른 색상 결정 (8개 이상: 주황색, 10개: 빨간색)
     Color borderColor;
     Color backgroundColor;
     Color iconColor;
     Color countColor;
 
     if (favoriteCount >= 10) {
-      // 최대 도달 - 빨간색
       borderColor = const Color(0xFFEF5350);
       backgroundColor = const Color(0xFFFFEBEE);
       iconColor = const Color(0xFFEF5350);
       countColor = const Color(0xFFD32F2F);
     } else if (favoriteCount >= 8) {
-      // 거의 찬 상태 - 주황색
       borderColor = const Color(0xFFFF9800);
       backgroundColor = const Color(0xFFFFF3E0);
       iconColor = const Color(0xFFFF9800);
       countColor = const Color(0xFFF57C00);
     } else {
-      // 여유 있는 상태 - 금색
       borderColor = const Color(0xFFFFD700);
       backgroundColor = const Color(0xFFFFF9E6);
       iconColor = const Color(0xFFFFD700);
@@ -1038,21 +1145,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _favoriteNewsUrls.remove(news.newsUrl);
           _favoriteNews.removeWhere((n) => n.newsUrl == news.newsUrl);
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('즐겨찾기에서 제거되었습니다'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      } else {
-        // 10개 제한 체크 - 서버에서 처리되지만 UI에서 미리 체크
-        if (_favoriteNewsUrls.length >= 10) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('즐겨찾기는 최대 10개까지 가능합니다'),
-              backgroundColor: AppColors.warningColor,
+              content: Text('즐겨찾기에서 제거되었습니다'),
+              duration: Duration(seconds: 1),
             ),
           );
+        }
+      } else {
+        if (_favoriteNewsUrls.length >= 10) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('즐겨찾기는 최대 10개까지 가능합니다'),
+                backgroundColor: AppColors.warningColor,
+              ),
+            );
+          }
           return;
         }
         await _firestoreService.addFavorite(
@@ -1067,21 +1177,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _favoriteNewsUrls.add(news.newsUrl);
           _favoriteNews.add(news);
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('즐겨찾기에 추가되었습니다'),
+              backgroundColor: AppColors.successColor,
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('즐겨찾기에 추가되었습니다'),
-            backgroundColor: AppColors.successColor,
-            duration: Duration(seconds: 1),
+          SnackBar(
+            content: Text('오류 발생: $e'),
+            backgroundColor: AppColors.errorColor,
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('오류 발생: $e'),
-          backgroundColor: AppColors.errorColor,
-        ),
-      );
     }
   }
 
@@ -1266,14 +1380,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               if (newNickname.isNotEmpty) {
                 try {
                   await authProvider.updateNickname(newNickname);
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('닉네임이 변경되었습니다')),
-                  );
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('닉네임이 변경되었습니다')),
+                    );
+                  }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('오류: $e')),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('오류: $e')),
+                    );
+                  }
                 }
               }
             },
@@ -1303,6 +1421,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
