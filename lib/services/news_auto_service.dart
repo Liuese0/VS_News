@@ -1,4 +1,4 @@
-// lib/services/news_auto_service.dart
+// lib/services/news_auto_service.dart (페이지네이션 추가 버전)
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../models/models.dart';
@@ -86,15 +86,12 @@ class NewsAutoService {
   // 한국 뉴스 소스 리스트
   static const List<String> koreanNewsSources = [
     'yonhap-news-agency',
-    // 'chosun-ilbo', // News API에서 지원하지 않을 수 있음
-    // 'joongang-ilbo',
-    // 'hankyoreh',
   ];
 
   // 뉴스 자동 수집
   Future<List<AutoCollectedNews>> collectKoreanNews({
     String category = 'general',
-    int pageSize = 20,
+    int pageSize = 50,
   }) async {
     try {
       List<AutoCollectedNews> allNews = [];
@@ -188,8 +185,12 @@ class NewsAutoService {
     return tags;
   }
 
-  // 카테고리별 뉴스 검색
-  Future<List<AutoCollectedNews>> searchNewsByCategory(String category) async {
+  // 카테고리별 뉴스 검색 (페이지네이션 지원 추가)
+  Future<List<AutoCollectedNews>> searchNewsByCategory(
+      String category, {
+        int page = 1,
+        int pageSize = 50,
+      }) async {
     try {
       String query = categoryKeywords[category]?.join(' OR ') ?? category;
 
@@ -199,7 +200,8 @@ class NewsAutoService {
           'q': query,
           'language': 'ko',
           'sortBy': 'publishedAt',
-          'pageSize': 20,
+          'page': page,
+          'pageSize': pageSize,
           'apiKey': ApiConstants.newsApiKey,
         },
       );

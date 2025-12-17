@@ -1,4 +1,4 @@
-// lib/screens/news_explorer_screen.dart
+// lib/screens/news_explorer_screen.dart (완전 통합 버전)
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -43,7 +43,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   bool _isLoadingMore = false;
   Set<String> _favoriteNewsIds = <String>{};
 
-  // 페이지네이션
+  // 페이지네이션 (인기 뉴스용)
   DocumentSnapshot? _lastDocument;
   bool _hasMore = true;
   static const int _pageSize = 10;
@@ -113,11 +113,22 @@ class _ExploreScreenState extends State<ExploreScreen>
 
     _lastScrollOffset = currentScrollOffset;
 
-    // 페이지네이션: 스크롤이 80% 이상 도달하면 다음 페이지 로드
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent * 0.8) {
-      if (!_isLoadingMore && _hasMore && _selectedCategory == '인기') {
-        _loadMorePopularNews();
+    // 페이지네이션: 모든 카테고리에서 지원
+    // 스크롤이 80% 이상 도달하면 다음 페이지 로드
+    if (!_isLoadingMore &&
+        _scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent * 0.8) {
+      if (_selectedCategory == '인기') {
+        // 인기 뉴스는 Firestore 페이지네이션
+        if (_hasMore) {
+          _loadMorePopularNews();
+        }
+      } else {
+        // 나머지 카테고리는 NewsProvider 페이지네이션
+        final newsProvider = context.read<NewsProvider>();
+        if (newsProvider.hasMore(_selectedCategory)) {
+          _loadMoreCategoryNews();
+        }
       }
     }
   }
@@ -149,14 +160,7 @@ class _ExploreScreenState extends State<ExploreScreen>
       if (_selectedCategory == '인기') {
         await _loadPopularNews();
       } else {
-        final newsProvider = context.read<NewsProvider>();
-        final newsList = await newsProvider.loadNews(category: _selectedCategory);
-
-        if (mounted) {
-          setState(() {
-            _newsList = newsList.take(_pageSize).toList();
-          });
-        }
+        await _loadCategoryNewsInitial();
       }
     } catch (e) {
       if (mounted) {
@@ -295,6 +299,51 @@ class _ExploreScreenState extends State<ExploreScreen>
       }
     } catch (e) {
       print('추가 뉴스 로드 실패: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
+    }
+  }
+
+  Future<void> _loadCategoryNewsInitial() async {
+    try {
+      final newsProvider = context.read<NewsProvider>();
+      final newsList = await newsProvider.loadNews(category: _selectedCategory);
+
+      if (mounted) {
+        setState(() {
+          _newsList = newsList;
+        });
+      }
+    } catch (e) {
+      print('카테고리 뉴스 로드 실패: $e');
+      if (mounted) {
+        setState(() {
+          _newsList = [];
+        });
+      }
+    }
+  }
+
+  Future<void> _loadMoreCategoryNews() async {
+    if (_isLoadingMore) return;
+
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final newsProvider = context.read<NewsProvider>();
+      final newNews = await newsProvider.loadMoreNews(_selectedCategory);
+
+      if (mounted && newNews.isNotEmpty) {
+        setState(() {
+          _newsList.addAll(newNews);
+        });
+      }
+
+      print('카테고리 뉴스 추가 로드 완료: +${newNews.length}개, 총 ${_newsList.length}개');
+    } catch (e) {
+      print('카테고리 뉴스 추가 로딩 오류: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoadingMore = false);
@@ -598,6 +647,10 @@ class _ExploreScreenState extends State<ExploreScreen>
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
+    final newsProvider = context.watch<NewsProvider>();
+    final hasMore = _selectedCategory == '인기'
+        ? _hasMore
+        : newsProvider.hasMore(_selectedCategory);
 
     return RefreshIndicator(
       onRefresh: _loadNews,
@@ -610,14 +663,14 @@ class _ExploreScreenState extends State<ExploreScreen>
           top: 0,
           bottom: screenWidth * 0.05,
         ),
-        itemCount: _newsList.length + 2, // +1 배너 광고, +1 로딩 인디케이터
+        itemCount: _newsList.length + 2, // +1 배너 광고, +1 로딩/완료 인디케이터
         itemBuilder: (context, index) {
           // 배너 광고를 첫 번째 아이템으로 표시
           if (index == 0) {
             return _buildBannerAd();
           }
 
-          // 로딩 인디케이터를 마지막에 표시
+          // 로딩/완료 인디케이터를 마지막에 표시
           if (index == _newsList.length + 1) {
             if (_isLoadingMore) {
               return Padding(
@@ -628,12 +681,12 @@ class _ExploreScreenState extends State<ExploreScreen>
                   ),
                 ),
               );
-            } else if (!_hasMore && _selectedCategory == '인기') {
+            } else if (!hasMore && _newsList.isNotEmpty) {
               return Padding(
                 padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
                 child: Center(
                   child: Text(
-                    '모든 인기 뉴스를 불러왔습니다',
+                    '모든 뉴스를 불러왔습니다',
                     style: TextStyle(
                       fontSize: screenWidth * 0.032,
                       color: const Color(0xFF999999),
@@ -1066,7 +1119,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   }
 }
 
-// ========== 뉴스 상세 + 토론 바텀시트 (이전과 동일) ==========
+// ========== 뉴스 상세 + 토론 바텀시트 (기존 코드 그대로 유지) ==========
 
 class NewsDetailWithDiscussion extends StatefulWidget {
   final AutoCollectedNews news;
