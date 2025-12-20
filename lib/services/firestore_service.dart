@@ -666,6 +666,50 @@ class FirestoreService {
   void clearCache() {
     _statsCache.clear();
   }
+
+  /// 여러 뉴스의 통계를 배치로 가져오기
+  Future<Map<String, Map<String, dynamic>>> getBatchNewsStats(List<String> newsUrls) async {
+    if (newsUrls.isEmpty) return {};
+
+    final Map<String, Map<String, dynamic>> result = {};
+
+    // 최대 10개씩 나눠서 조회 (Firestore in 쿼리 제한)
+    final chunks = _chunkList(newsUrls, 10);
+
+    for (final chunk in chunks) {
+      final newsStatsIds = chunk.map((url) => _generateNewsStatsId(url)).toList();
+
+      final snapshot = await _firestore
+          .collection('newsStats')
+          .where(FieldPath.documentId, whereIn: newsStatsIds)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final newsUrl = data['newsUrl'] as String;
+        result[newsUrl] = {
+          'commentCount': data['commentCount'] ?? 0,
+          'participantCount': data['participantCount'] ?? 0,
+          'proVotes': data['proVotes'] ?? 0,
+          'conVotes': data['conVotes'] ?? 0,
+          'lastCommentAt': data['lastCommentAt'],
+        };
+      }
+    }
+
+    // 통계가 없는 뉴스는 기본값 설정
+    for (final url in newsUrls) {
+      result.putIfAbsent(url, () => {
+        'commentCount': 0,
+        'participantCount': 0,
+        'proVotes': 0,
+        'conVotes': 0,
+        'lastCommentAt': null,
+      });
+    }
+
+    return result;
+  }
 }
 
 /// 뉴스 통계 캐시 모델
