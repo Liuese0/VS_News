@@ -1,4 +1,4 @@
-// lib/providers/news_provider.dart (페이지네이션 개선 버전)
+// lib/providers/news_provider.dart (페이지 번호 방식)
 import 'package:flutter/material.dart';
 import '../models/auto_collected_news.dart';
 import '../services/news_auto_service.dart';
@@ -29,17 +29,27 @@ class NewsProvider extends ChangeNotifier {
         .toList();
   }
 
-  // 초기 뉴스 로드
+  // 초기 뉴스 로드 (페이지 1)
   Future<List<AutoCollectedNews>> loadNews({String category = '전체'}) async {
+    return loadNewsPage(category: category, page: 1);
+  }
+
+  // 특정 페이지 뉴스 로드
+  Future<List<AutoCollectedNews>> loadNewsPage({
+    required String category,
+    required int page,
+  }) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      // 기존 데이터 초기화
-      if (!_newsByCategory.containsKey(category)) {
-        _newsByCategory[category] = _CategoryNewsData();
-      } else {
-        _newsByCategory[category]!.reset();
+      // 카테고리 데이터 초기화 (페이지 1일 때만)
+      if (page == 1) {
+        if (!_newsByCategory.containsKey(category)) {
+          _newsByCategory[category] = _CategoryNewsData();
+        } else {
+          _newsByCategory[category]!.reset();
+        }
       }
 
       final categoryData = _newsByCategory[category]!;
@@ -47,12 +57,15 @@ class NewsProvider extends ChangeNotifier {
       List<AutoCollectedNews> newsList;
 
       if (category == '전체') {
-        newsList = await _newsService.collectKoreanNews(pageSize: 50);
+        newsList = await _newsService.collectKoreanNews(
+          page: page,
+          pageSize: 20,
+        );
       } else {
         newsList = await _newsService.searchNewsByCategory(
           category,
-          page: 1,
-          pageSize: 50,
+          page: page,
+          pageSize: 20,
         );
       }
 
@@ -61,9 +74,15 @@ class NewsProvider extends ChangeNotifier {
         _newsCache[news.url] = news;
       }
 
-      // 카테고리 데이터 저장
-      categoryData.newsList = newsList;
-      categoryData.hasMore = newsList.length >= 50;
+      // 페이지 1이면 교체, 아니면 추가
+      if (page == 1) {
+        categoryData.newsList = newsList;
+      } else {
+        categoryData.newsList.addAll(newsList);
+      }
+
+      categoryData.currentPage = page;
+      categoryData.totalPages = 5; // News API는 보통 5페이지 정도까지 제공
 
       _isLoading = false;
       notifyListeners();
@@ -77,71 +96,19 @@ class NewsProvider extends ChangeNotifier {
     }
   }
 
-  // 추가 뉴스 로드 (페이지네이션)
-  Future<List<AutoCollectedNews>> loadMoreNews(String category) async {
-    if (!_newsByCategory.containsKey(category)) {
-      return [];
-    }
-
-    final categoryData = _newsByCategory[category]!;
-
-    if (categoryData.isLoadingMore || !categoryData.hasMore) {
-      return [];
-    }
-
-    categoryData.isLoadingMore = true;
-    notifyListeners();
-
-    try {
-      final nextPage = categoryData.currentPage + 1;
-
-      List<AutoCollectedNews> newsList;
-
-      if (category == '전체') {
-        newsList = await _newsService.collectKoreanNews(pageSize: 50);
-      } else {
-        newsList = await _newsService.searchNewsByCategory(
-          category,
-          page: nextPage,
-          pageSize: 50,
-        );
-      }
-
-      // 캐시에 저장
-      for (var news in newsList) {
-        _newsCache[news.url] = news;
-      }
-
-      // 기존 리스트에 추가
-      categoryData.newsList.addAll(newsList);
-      categoryData.currentPage = nextPage;
-      categoryData.hasMore = newsList.length >= 50;
-
-      categoryData.isLoadingMore = false;
-      notifyListeners();
-
-      return newsList;
-    } catch (e) {
-      print('추가 뉴스 로드 실패: $e');
-      categoryData.isLoadingMore = false;
-      notifyListeners();
-      return [];
-    }
-  }
-
   // 특정 카테고리 뉴스 목록 가져오기
   List<AutoCollectedNews> getCategoryNews(String category) {
     return _newsByCategory[category]?.newsList ?? [];
   }
 
-  // 더 불러올 뉴스가 있는지 확인
-  bool hasMore(String category) {
-    return _newsByCategory[category]?.hasMore ?? true;
+  // 현재 페이지 가져오기
+  int getCurrentPage(String category) {
+    return _newsByCategory[category]?.currentPage ?? 1;
   }
 
-  // 로딩 중인지 확인
-  bool isLoadingMore(String category) {
-    return _newsByCategory[category]?.isLoadingMore ?? false;
+  // 총 페이지 수 가져오기
+  int getTotalPages(String category) {
+    return _newsByCategory[category]?.totalPages ?? 5;
   }
 
   // 특정 뉴스를 캐시에 추가
@@ -159,19 +126,37 @@ class NewsProvider extends ChangeNotifier {
 
   // 캐시된 뉴스 개수
   int get cachedNewsCount => _newsCache.length;
+
+  // 하위 호환성을 위한 메서드들
+  bool hasMore(String category) {
+    final data = _newsByCategory[category];
+    if (data == null) return true;
+    return data.currentPage < data.totalPages;
+  }
+
+  bool isLoadingMore(String category) {
+    return false; // 페이지 방식에서는 사용 안 함
+  }
+
+  Future<List<AutoCollectedNews>> loadMoreNews(String category) async {
+    final data = _newsByCategory[category];
+    if (data == null) return [];
+
+    final nextPage = data.currentPage + 1;
+    if (nextPage > data.totalPages) return [];
+
+    return loadNewsPage(category: category, page: nextPage);
+  }
 }
 
 // 카테고리별 뉴스 데이터 관리 클래스
 class _CategoryNewsData {
   List<AutoCollectedNews> newsList = [];
   int currentPage = 1;
-  bool hasMore = true;
-  bool isLoadingMore = false;
+  int totalPages = 5; // News API 기본값
 
   void reset() {
     newsList.clear();
     currentPage = 1;
-    hasMore = true;
-    isLoadingMore = false;
   }
 }

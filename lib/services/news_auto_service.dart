@@ -1,4 +1,4 @@
-// lib/services/news_auto_service.dart (페이지네이션 추가 버전)
+// lib/services/news_auto_service.dart (페이지 번호 방식)
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../models/models.dart';
@@ -22,7 +22,7 @@ class NewsAutoService {
     '산업': ['삼성', 'LG', '현대', '기업', '산업', '제조업', '반도체', '자동차', '조선', '건설'],
     '사회': ['사회', '교육', '의료', '복지', '범죄', '사고', '재해', '안전', '환경', '교통'],
     '문화': ['문화', '예술', '영화', '드라마', '음악', '전시', '공연', '축제', '관광', '여행'],
-    '과학': ['과학', '기술', 'IT', 'AI', '인공지능', '연구', '개발', '혁신', '디지털', '바이오'],
+    '과학기술': ['과학', '기술', 'IT', 'AI', '인공지능', '연구', '개발', '혁신', '디지털', '바이오'],
     '스포츠': ['스포츠', '축구', '야구', '농구', '배구', '골프', '테니스', '올림픽', '월드컵', '선수'],
     '연예': ['연예', '아이돌', '가수', '배우', '방송', 'K-POP', '드라마', '예능', '엔터테인먼트', '셀럽'],
   };
@@ -63,7 +63,7 @@ class NewsAutoService {
       '드라마': ['드라마', 'TV', '방송', 'OTT'],
       '관광': ['관광', '여행', '축제', '문화재'],
     },
-    '과학': {
+    '과학기술': {
       'IT': ['IT', '정보기술', '소프트웨어', '앱'],
       'AI': ['AI', '인공지능', '머신러닝', '딥러닝'],
       '바이오': ['바이오', '생명과학', '의학', '신약'],
@@ -91,13 +91,14 @@ class NewsAutoService {
   // 뉴스 자동 수집
   Future<List<AutoCollectedNews>> collectKoreanNews({
     String category = 'general',
-    int pageSize = 50,
+    int page = 1,
+    int pageSize = 20,
   }) async {
     try {
       List<AutoCollectedNews> allNews = [];
 
       // 1. News API에서 한국 뉴스 가져오기
-      final newsApiResults = await _fetchFromNewsAPI(category, pageSize);
+      final newsApiResults = await _fetchFromNewsAPI(category, page, pageSize);
       allNews.addAll(newsApiResults);
 
       // 2. 카테고리와 태그 자동 분류
@@ -114,13 +115,14 @@ class NewsAutoService {
   }
 
   // News API에서 뉴스 가져오기
-  Future<List<AutoCollectedNews>> _fetchFromNewsAPI(String category, int pageSize) async {
+  Future<List<AutoCollectedNews>> _fetchFromNewsAPI(String category, int page, int pageSize) async {
     try {
       final response = await _dio.get(
         'https://newsapi.org/v2/top-headlines',
         queryParameters: {
           'country': 'kr',
           'category': category == 'general' ? null : category,
+          'page': page,
           'pageSize': pageSize,
           'apiKey': ApiConstants.newsApiKey,
         },
@@ -185,11 +187,11 @@ class NewsAutoService {
     return tags;
   }
 
-  // 카테고리별 뉴스 검색 (페이지네이션 지원 추가)
+  // 카테고리별 뉴스 검색 (페이지 번호 방식)
   Future<List<AutoCollectedNews>> searchNewsByCategory(
       String category, {
         int page = 1,
-        int pageSize = 50,
+        int pageSize = 20,
       }) async {
     try {
       String query = categoryKeywords[category]?.join(' OR ') ?? category;
