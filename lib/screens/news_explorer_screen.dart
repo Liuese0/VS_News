@@ -339,9 +339,12 @@ class _ExploreScreenState extends State<ExploreScreen>
       }).toList();
 
       // commentCount 기준 내림차순 정렬
-      newsWithStats.sort((a, b) =>
-          (b['commentCount'] as int).compareTo(a['commentCount'] as int)
-      );
+      newsWithStats.sort((a, b) {
+        final aCount = (a['commentCount'] ?? 0) as int;
+        final bCount = (b['commentCount'] ?? 0) as int;
+        return bCount.compareTo(aCount);
+      });
+
 
       // 상위 3개 추출
       final topThree = newsWithStats.take(3).map((item) => item['news'] as AutoCollectedNews).toList();
