@@ -329,20 +329,46 @@ class _ExploreScreenState extends State<ExploreScreen>
       final newsUrls = newsList.map((news) => news.url).toList();
       final statsMap = await _firestoreService.getBatchNewsStats(newsUrls);
 
-      // commentCount 기준으로 정렬하여 상위 3개 추출
+      // 최근 7일 기준 시간 계산
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+
+      // 투표+댓글 수 기준으로 정렬하여 상위 3개 추출 (최근 7일 데이터만)
       final newsWithStats = newsList.map((news) {
-        final stats = statsMap[news.url] ?? {'commentCount': 0};
+        final stats = statsMap[news.url] ?? {
+          'commentCount': 0,
+          'proVotes': 0,
+          'conVotes': 0,
+          'lastCommentAt': null,
+        };
+
+        final commentCount = stats['commentCount'] as int;
+        final proVotes = stats['proVotes'] as int;
+        final conVotes = stats['conVotes'] as int;
+        final lastCommentAt = stats['lastCommentAt'];
+
+        // 최근 7일 이내 활동이 있는지 확인
+        bool isRecentActivity = false;
+        if (lastCommentAt != null) {
+          final lastActivityDate = (lastCommentAt as Timestamp).toDate();
+          isRecentActivity = lastActivityDate.isAfter(sevenDaysAgo);
+        }
+
+        // 최근 7일 이내 활동이 있는 경우에만 투표+댓글 수를 계산
+        final totalEngagement = isRecentActivity ? (commentCount + proVotes + conVotes) : 0;
+
         return {
           'news': news,
-          'commentCount': stats['commentCount'] as int,
+          'commentCount': commentCount,
+          'totalEngagement': totalEngagement,
+          'isRecentActivity': isRecentActivity,
         };
       }).toList();
 
-      // commentCount 기준 내림차순 정렬
+      // 투표+댓글 총합 기준 내림차순 정렬
       newsWithStats.sort((a, b) {
-        final aCount = (a['commentCount'] ?? 0) as int;
-        final bCount = (b['commentCount'] ?? 0) as int;
-        return bCount.compareTo(aCount);
+        final aEngagement = (a['totalEngagement'] ?? 0) as int;
+        final bEngagement = (b['totalEngagement'] ?? 0) as int;
+        return bEngagement.compareTo(aEngagement);
       });
 
 
