@@ -590,41 +590,77 @@ class FirestoreService {
 
   // ========== 인기 토론 (페이지네이션 추가) ==========
 
-  /// 인기 토론 가져오기 (commentCount 기준 정렬, 페이지네이션 지원)
+  /// 인기 토론 가져오기 (최근 7일간 투표+댓글 수 기준 정렬, 페이지네이션 지원)
   Future<Map<String, dynamic>> getPopularDiscussions({
     int limit = 10, // 페이지당 10개로 변경
     DocumentSnapshot? lastDocument,
   }) async {
+    // 최근 7일 기준 시간 계산
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+
+    // 최근 7일간 활동이 있는 뉴스를 가져오기 (충분히 많은 수를 가져옴)
     Query query = _firestore
         .collection('newsStats')
-        .orderBy('commentCount', descending: true)
-        .limit(limit);
-
-    // 페이지네이션: 마지막 문서부터 시작
-    if (lastDocument != null) {
-      query = query.startAfterDocument(lastDocument);
-    }
+        .where('lastCommentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
+        .orderBy('lastCommentAt', descending: true)
+        .limit(100); // 충분한 데이터를 가져와서 클라이언트에서 정렬
 
     final snapshot = await query.get();
 
+    // 투표 수 + 댓글 수 기준으로 정렬
     final discussions = snapshot.docs.map((doc) {
       final data = doc.data() as Map<String, dynamic>;
+      final commentCount = data['commentCount'] ?? 0;
+      final proVotes = data['proVotes'] ?? 0;
+      final conVotes = data['conVotes'] ?? 0;
+      final totalEngagement = commentCount + proVotes + conVotes;
+
       return {
         'newsUrl': data['newsUrl'] ?? '',
-        'commentCount': data['commentCount'] ?? 0,
+        'commentCount': commentCount,
         'participantCount': data['participantCount'] ?? 0,
+        'proVotes': proVotes,
+        'conVotes': conVotes,
+        'totalEngagement': totalEngagement,
         'lastCommentTime': data['lastCommentAt'],
         'title': data['title'] ?? '제목 없음',
         'description': data['description'] ?? '',
         'imageUrl': data['imageUrl'],
         'source': data['source'] ?? '뉴스',
+        'doc': doc,
       };
     }).toList();
 
+    // 투표+댓글 총합 기준으로 내림차순 정렬
+    discussions.sort((a, b) {
+      final aEngagement = a['totalEngagement'] as int;
+      final bEngagement = b['totalEngagement'] as int;
+      return bEngagement.compareTo(aEngagement);
+    });
+
+    // 페이지네이션 처리
+    final startIndex = lastDocument != null
+        ? discussions.indexWhere((d) => (d['doc'] as DocumentSnapshot).id == lastDocument.id) + 1
+        : 0;
+
+    final endIndex = (startIndex + limit).clamp(0, discussions.length);
+    final paginatedDiscussions = discussions.sublist(
+      startIndex.clamp(0, discussions.length),
+      endIndex
+    );
+
+    // doc 필드 제거 (반환용)
+    final result = paginatedDiscussions.map((d) {
+      d.remove('doc');
+      return d;
+    }).toList();
+
     return {
-      'discussions': discussions,
-      'lastDocument': snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
-      'hasMore': snapshot.docs.length == limit,
+      'discussions': result,
+      'lastDocument': paginatedDiscussions.isNotEmpty
+          ? paginatedDiscussions.last['doc']
+          : null,
+      'hasMore': endIndex < discussions.length,
     };
   }
 
