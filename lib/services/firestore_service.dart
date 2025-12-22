@@ -590,18 +590,18 @@ class FirestoreService {
 
   // ========== 인기 토론 (페이지네이션 추가) ==========
 
-  /// 인기 토론 가져오기 (최근 7일간 투표+댓글 수 기준 정렬, 페이지네이션 지원)
+  /// 인기 토론 가져오기 (최근 24시간 투표+댓글 수 기준 정렬, 페이지네이션 지원)
   Future<Map<String, dynamic>> getPopularDiscussions({
     int limit = 10, // 페이지당 10개로 변경
     DocumentSnapshot? lastDocument,
   }) async {
-    // 최근 7일 기준 시간 계산
-    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    // 최근 24시간 기준 시간 계산
+    final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24));
 
-    // 최근 7일간 활동이 있는 뉴스를 가져오기 (충분히 많은 수를 가져옴)
+    // 최근 24시간 활동이 있는 뉴스를 가져오기 (충분히 많은 수를 가져옴)
     Query query = _firestore
         .collection('newsStats')
-        .where('lastCommentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
+        .where('lastCommentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(oneDayAgo))
         .orderBy('lastCommentAt', descending: true)
         .limit(100); // 충분한 데이터를 가져와서 클라이언트에서 정렬
 

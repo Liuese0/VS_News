@@ -329,10 +329,10 @@ class _ExploreScreenState extends State<ExploreScreen>
       final newsUrls = newsList.map((news) => news.url).toList();
       final statsMap = await _firestoreService.getBatchNewsStats(newsUrls);
 
-      // 최근 7일 기준 시간 계산
-      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      // 최근 24시간 기준 시간 계산
+      final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24));
 
-      // 투표+댓글 수 기준으로 정렬하여 상위 3개 추출 (최근 7일 데이터만)
+      // 투표+댓글 수 기준으로 정렬하여 상위 3개 추출 (최근 24시간 데이터만)
       final newsWithStats = newsList.map((news) {
         final stats = statsMap[news.url] ?? {
           'commentCount': 0,
@@ -346,14 +346,14 @@ class _ExploreScreenState extends State<ExploreScreen>
         final conVotes = stats['conVotes'] as int;
         final lastCommentAt = stats['lastCommentAt'];
 
-        // 최근 7일 이내 활동이 있는지 확인
+        // 최근 24시간 이내 활동이 있는지 확인
         bool isRecentActivity = false;
         if (lastCommentAt != null) {
           final lastActivityDate = (lastCommentAt as Timestamp).toDate();
-          isRecentActivity = lastActivityDate.isAfter(sevenDaysAgo);
+          isRecentActivity = lastActivityDate.isAfter(oneDayAgo);
         }
 
-        // 최근 7일 이내 활동이 있는 경우에만 투표+댓글 수를 계산
+        // 최근 24시간 이내 활동이 있는 경우에만 투표+댓글 수를 계산
         final totalEngagement = isRecentActivity ? (commentCount + proVotes + conVotes) : 0;
 
         return {
