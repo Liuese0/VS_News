@@ -114,9 +114,10 @@ class _ExploreScreenState extends State<ExploreScreen>
 
     _lastScrollOffset = currentScrollOffset;
 
-    // 페이지네이션: 모든 카테고리에서 지원
+    // 페이지네이션: 논쟁 이슈 탭 제외한 모든 카테고리에서 지원
     // 스크롤이 80% 이상 도달하면 다음 페이지 로드
     if (!_isLoadingMore &&
+        _selectedTab == 0 && // 실시간 뉴스 탭에서만 페이지네이션
         _scrollController.position.pixels >=
             _scrollController.position.maxScrollExtent * 0.8) {
       if (_selectedCategory == '인기') {
@@ -158,10 +159,17 @@ class _ExploreScreenState extends State<ExploreScreen>
     });
 
     try {
-      if (_selectedCategory == '인기') {
-        await _loadPopularNews();
-      } else {
-        await _loadCategoryNewsInitial();
+      // 논쟁 이슈 탭이 선택된 경우
+      if (_selectedTab == 1) {
+        await _loadControversialIssues();
+      }
+      // 실시간 뉴스 탭이 선택된 경우
+      else {
+        if (_selectedCategory == '인기') {
+          await _loadPopularNews();
+        } else {
+          await _loadCategoryNewsInitial();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -329,10 +337,10 @@ class _ExploreScreenState extends State<ExploreScreen>
       final newsUrls = newsList.map((news) => news.url).toList();
       final statsMap = await _firestoreService.getBatchNewsStats(newsUrls);
 
-      // 최근 7일 기준 시간 계산
-      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      // 최근 24시간 기준 시간 계산
+      final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24));
 
-      // 투표+댓글 수 기준으로 정렬하여 상위 3개 추출 (최근 7일 데이터만)
+      // 투표+댓글 수 기준으로 정렬하여 상위 3개 추출 (최근 24시간 데이터만)
       final newsWithStats = newsList.map((news) {
         final stats = statsMap[news.url] ?? {
           'commentCount': 0,
@@ -346,14 +354,14 @@ class _ExploreScreenState extends State<ExploreScreen>
         final conVotes = stats['conVotes'] as int;
         final lastCommentAt = stats['lastCommentAt'];
 
-        // 최근 7일 이내 활동이 있는지 확인
+        // 최근 24시간 이내 활동이 있는지 확인
         bool isRecentActivity = false;
         if (lastCommentAt != null) {
           final lastActivityDate = (lastCommentAt as Timestamp).toDate();
-          isRecentActivity = lastActivityDate.isAfter(sevenDaysAgo);
+          isRecentActivity = lastActivityDate.isAfter(oneDayAgo);
         }
 
-        // 최근 7일 이내 활동이 있는 경우에만 투표+댓글 수를 계산
+        // 최근 24시간 이내 활동이 있는 경우에만 투표+댓글 수를 계산
         final totalEngagement = isRecentActivity ? (commentCount + proVotes + conVotes) : 0;
 
         return {
@@ -421,6 +429,66 @@ class _ExploreScreenState extends State<ExploreScreen>
     } finally {
       if (mounted) {
         setState(() => _isLoadingMore = false);
+      }
+    }
+  }
+
+  Future<void> _loadControversialIssues() async {
+    try {
+      final controversialIssues = await _firestoreService.getControversialIssues();
+
+      if (controversialIssues.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _newsList = [];
+            _hasMore = false;
+            _popularNewsUrls.clear();
+          });
+        }
+        return;
+      }
+
+      final newsProvider = context.read<NewsProvider>();
+      List<AutoCollectedNews> controversialNewsList = [];
+
+      for (var issue in controversialIssues) {
+        final newsUrl = issue['newsUrl'] as String;
+
+        var news = newsProvider.getNewsByUrl(newsUrl);
+
+        if (news == null) {
+          // 뉴스 메타데이터가 newsStats에 저장되어 있음
+          news = AutoCollectedNews(
+            title: issue['title'] ?? '제목 없음',
+            description: issue['description'] ?? '자세한 내용을 보려면 클릭하세요',
+            url: newsUrl,
+            source: issue['source'] ?? '뉴스',
+            imageUrl: issue['imageUrl'],
+            publishedAt: (issue['lastCommentTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            autoCategory: '논쟁이슈',
+            autoTags: [],
+          );
+        }
+
+        controversialNewsList.add(news);
+      }
+
+      if (mounted) {
+        setState(() {
+          _newsList = controversialNewsList;
+          _hasMore = false; // 논쟁 이슈는 10개만 표시하므로 페이지네이션 없음
+          // 논쟁 이슈는 모두 인기 뉴스이므로 상위 3개에 순위 표시
+          _popularNewsUrls = controversialNewsList.take(3).map((news) => news.url).toList();
+        });
+      }
+    } catch (e) {
+      print('논쟁 이슈 로드 실패: $e');
+      if (mounted) {
+        setState(() {
+          _newsList = [];
+          _hasMore = false;
+          _popularNewsUrls.clear();
+        });
       }
     }
   }
@@ -620,6 +688,7 @@ class _ExploreScreenState extends State<ExploreScreen>
     return GestureDetector(
       onTap: () {
         setState(() => _selectedTab = index);
+        _loadNews(); // 탭 변경 시 뉴스 다시 로드
       },
       child: Container(
         padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
@@ -800,7 +869,11 @@ class _ExploreScreenState extends State<ExploreScreen>
           ),
           SizedBox(height: screenWidth * 0.05),
           Text(
-            _selectedCategory == '인기' ? '아직 인기 뉴스가 없습니다' : '뉴스가 없습니다',
+            _selectedTab == 1
+                ? '아직 논쟁 이슈가 없습니다'
+                : _selectedCategory == '인기'
+                    ? '아직 인기 뉴스가 없습니다'
+                    : '뉴스가 없습니다',
             style: TextStyle(
               fontSize: screenWidth * 0.04,
               fontWeight: FontWeight.bold,
@@ -811,9 +884,11 @@ class _ExploreScreenState extends State<ExploreScreen>
           Padding(
             padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.1),
             child: Text(
-              _selectedCategory == '인기'
-                  ? '댓글이 달린 뉴스가 아직 없습니다'
-                  : '다른 카테고리를 선택하거나 새로고침해주세요',
+              _selectedTab == 1
+                  ? '최근 1달간 활발한 논쟁이 없습니다'
+                  : _selectedCategory == '인기'
+                      ? '댓글이 달린 뉴스가 아직 없습니다'
+                      : '다른 카테고리를 선택하거나 새로고침해주세요',
               style: TextStyle(
                 fontSize: screenWidth * 0.035,
                 color: const Color(0xFF666666),

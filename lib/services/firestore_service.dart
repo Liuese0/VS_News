@@ -590,18 +590,18 @@ class FirestoreService {
 
   // ========== 인기 토론 (페이지네이션 추가) ==========
 
-  /// 인기 토론 가져오기 (최근 7일간 투표+댓글 수 기준 정렬, 페이지네이션 지원)
+  /// 인기 토론 가져오기 (최근 24시간 투표+댓글 수 기준 정렬, 페이지네이션 지원)
   Future<Map<String, dynamic>> getPopularDiscussions({
     int limit = 10, // 페이지당 10개로 변경
     DocumentSnapshot? lastDocument,
   }) async {
-    // 최근 7일 기준 시간 계산
-    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+    // 최근 24시간 기준 시간 계산
+    final oneDayAgo = DateTime.now().subtract(const Duration(hours: 24));
 
-    // 최근 7일간 활동이 있는 뉴스를 가져오기 (충분히 많은 수를 가져옴)
+    // 최근 24시간 활동이 있는 뉴스를 가져오기 (충분히 많은 수를 가져옴)
     Query query = _firestore
         .collection('newsStats')
-        .where('lastCommentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
+        .where('lastCommentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(oneDayAgo))
         .orderBy('lastCommentAt', descending: true)
         .limit(100); // 충분한 데이터를 가져와서 클라이언트에서 정렬
 
@@ -662,6 +662,54 @@ class FirestoreService {
           : null,
       'hasMore': endIndex < discussions.length,
     };
+  }
+
+  /// 논쟁 이슈 가져오기 (최근 1달간 투표+댓글 수 기준 정렬, 상위 10개만)
+  Future<List<Map<String, dynamic>>> getControversialIssues() async {
+    // 최근 1달 기준 시간 계산
+    final oneMonthAgo = DateTime.now().subtract(const Duration(days: 30));
+
+    // 최근 1달간 활동이 있는 뉴스를 가져오기
+    Query query = _firestore
+        .collection('newsStats')
+        .where('lastCommentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(oneMonthAgo))
+        .orderBy('lastCommentAt', descending: true)
+        .limit(200); // 충분한 데이터를 가져와서 클라이언트에서 정렬
+
+    final snapshot = await query.get();
+
+    // 투표 수 + 댓글 수 기준으로 정렬
+    final discussions = snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final commentCount = data['commentCount'] ?? 0;
+      final proVotes = data['proVotes'] ?? 0;
+      final conVotes = data['conVotes'] ?? 0;
+      final totalEngagement = commentCount + proVotes + conVotes;
+
+      return {
+        'newsUrl': data['newsUrl'] ?? '',
+        'commentCount': commentCount,
+        'participantCount': data['participantCount'] ?? 0,
+        'proVotes': proVotes,
+        'conVotes': conVotes,
+        'totalEngagement': totalEngagement,
+        'lastCommentTime': data['lastCommentAt'],
+        'title': data['title'] ?? '제목 없음',
+        'description': data['description'] ?? '',
+        'imageUrl': data['imageUrl'],
+        'source': data['source'] ?? '뉴스',
+      };
+    }).toList();
+
+    // 투표+댓글 총합 기준으로 내림차순 정렬
+    discussions.sort((a, b) {
+      final aEngagement = a['totalEngagement'] as int;
+      final bEngagement = b['totalEngagement'] as int;
+      return bEngagement.compareTo(aEngagement);
+    });
+
+    // 상위 10개만 반환
+    return discussions.take(10).toList();
   }
 
   /// 사용자가 참여한 토론 가져오기
