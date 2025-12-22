@@ -42,6 +42,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   bool _isLoading = false;
   bool _isLoadingMore = false;
   Set<String> _favoriteNewsIds = <String>{};
+  List<String> _popularNewsUrls = []; // 카테고리별 인기 뉴스 URL 추적 (순서 유지)
 
   // 페이지네이션 (인기 뉴스용)
   DocumentSnapshot? _lastDocument;
@@ -231,6 +232,8 @@ class _ExploreScreenState extends State<ExploreScreen>
       if (mounted) {
         setState(() {
           _newsList = popularNewsList;
+          // '인기' 카테고리에서는 상위 3개를 인기 뉴스로 표시
+          _popularNewsUrls = popularNewsList.take(3).map((news) => news.url).toList();
         });
       }
     } catch (e) {
@@ -243,6 +246,7 @@ class _ExploreScreenState extends State<ExploreScreen>
         setState(() {
           _newsList = newsList.take(_pageSize).toList();
           _hasMore = false;
+          _popularNewsUrls.clear();
         });
       }
     }
@@ -311,9 +315,49 @@ class _ExploreScreenState extends State<ExploreScreen>
       final newsProvider = context.read<NewsProvider>();
       final newsList = await newsProvider.loadNews(category: _selectedCategory);
 
+      if (newsList.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _newsList = [];
+            _popularNewsUrls.clear();
+          });
+        }
+        return;
+      }
+
+      // 각 뉴스의 통계 정보를 배치로 가져오기
+      final newsUrls = newsList.map((news) => news.url).toList();
+      final statsMap = await _firestoreService.getBatchNewsStats(newsUrls);
+
+      // commentCount 기준으로 정렬하여 상위 3개 추출
+      final newsWithStats = newsList.map((news) {
+        final stats = statsMap[news.url] ?? {'commentCount': 0};
+        return {
+          'news': news,
+          'commentCount': stats['commentCount'] as int,
+        };
+      }).toList();
+
+      // commentCount 기준 내림차순 정렬
+      newsWithStats.sort((a, b) =>
+          (b['commentCount'] as int).compareTo(a['commentCount'] as int)
+      );
+
+      // 상위 3개 추출
+      final topThree = newsWithStats.take(3).map((item) => item['news'] as AutoCollectedNews).toList();
+      final topThreeUrls = topThree.map((news) => news.url).toList();
+
+      // 나머지는 publishedAt 기준으로 정렬
+      final remaining = newsWithStats.skip(3).map((item) => item['news'] as AutoCollectedNews).toList();
+      remaining.sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+
+      // 최종 리스트: 인기 3개 + 나머지
+      final sortedNewsList = [...topThree, ...remaining];
+
       if (mounted) {
         setState(() {
-          _newsList = newsList;
+          _newsList = sortedNewsList;
+          _popularNewsUrls = topThreeUrls;
         });
       }
     } catch (e) {
@@ -321,6 +365,7 @@ class _ExploreScreenState extends State<ExploreScreen>
       if (mounted) {
         setState(() {
           _newsList = [];
+          _popularNewsUrls.clear();
         });
       }
     }
@@ -890,44 +935,53 @@ class _ExploreScreenState extends State<ExploreScreen>
                     ],
                   ),
                   SizedBox(height: screenWidth * 0.03),
-                  if (_selectedCategory == '인기' && index < 3)
-                    Container(
-                      margin: EdgeInsets.only(bottom: screenWidth * 0.02),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: screenWidth * 0.02,
-                        vertical: screenWidth * 0.01,
-                      ),
-                      decoration: BoxDecoration(
-                        color: index == 0
-                            ? const Color(0xFFFFD700).withOpacity(0.2)
-                            : index == 1
-                            ? const Color(0xFFC0C0C0).withOpacity(0.2)
-                            : const Color(0xFFCD7F32).withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            index == 0 ? '🥇' : index == 1 ? '🥈' : '🥉',
-                            style: TextStyle(fontSize: screenWidth * 0.035),
+                  Builder(
+                    builder: (context) {
+                      // 인기 뉴스인지 확인하고 순위 가져오기
+                      final rankIndex = _popularNewsUrls.indexOf(news.url);
+                      if (rankIndex != -1) {
+                        // 순위가 있는 경우 (0=1위, 1=2위, 2=3위)
+                        return Container(
+                          margin: EdgeInsets.only(bottom: screenWidth * 0.02),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: screenWidth * 0.02,
+                            vertical: screenWidth * 0.01,
                           ),
-                          SizedBox(width: screenWidth * 0.01),
-                          Text(
-                            '${index + 1}위',
-                            style: TextStyle(
-                              fontSize: screenWidth * 0.03,
-                              fontWeight: FontWeight.bold,
-                              color: index == 0
-                                  ? const Color(0xFFFFD700)
-                                  : index == 1
-                                  ? const Color(0xFF808080)
-                                  : const Color(0xFFCD7F32),
-                            ),
+                          decoration: BoxDecoration(
+                            color: rankIndex == 0
+                                ? const Color(0xFFFFD700).withOpacity(0.2)
+                                : rankIndex == 1
+                                ? const Color(0xFFC0C0C0).withOpacity(0.2)
+                                : const Color(0xFFCD7F32).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                        ],
-                      ),
-                    ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                rankIndex == 0 ? '🥇' : rankIndex == 1 ? '🥈' : '🥉',
+                                style: TextStyle(fontSize: screenWidth * 0.035),
+                              ),
+                              SizedBox(width: screenWidth * 0.01),
+                              Text(
+                                '${rankIndex + 1}위',
+                                style: TextStyle(
+                                  fontSize: screenWidth * 0.03,
+                                  fontWeight: FontWeight.bold,
+                                  color: rankIndex == 0
+                                      ? const Color(0xFFFFD700)
+                                      : rankIndex == 1
+                                      ? const Color(0xFF808080)
+                                      : const Color(0xFFCD7F32),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                   Text(
                     news.title,
                     style: TextStyle(
