@@ -13,6 +13,7 @@ import '../providers/auth_provider.dart';
 import '../providers/news_comment_provider.dart';
 import '../providers/news_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'news_webview_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -1249,11 +1250,11 @@ class _ExploreScreenState extends State<ExploreScreen>
   }
 
   void _showNewsDetailWithDiscussion(AutoCollectedNews news) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => NewsDetailWithDiscussion(news: news),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NewsWebViewScreen(news: news),
+      ),
     );
   }
 
@@ -1281,8 +1282,13 @@ class _ExploreScreenState extends State<ExploreScreen>
 
 class NewsDetailWithDiscussion extends StatefulWidget {
   final AutoCollectedNews news;
+  final bool hideNewsContent;
 
-  const NewsDetailWithDiscussion({super.key, required this.news});
+  const NewsDetailWithDiscussion({
+    super.key,
+    required this.news,
+    this.hideNewsContent = false,
+  });
 
   @override
   State<NewsDetailWithDiscussion> createState() => _NewsDetailWithDiscussionState();
@@ -1416,11 +1422,13 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildNewsContent(),
-                      Container(
-                        height: 8,
-                        color: const Color(0xFFF5F5F5),
-                      ),
+                      if (!widget.hideNewsContent) ...[
+                        _buildNewsContent(),
+                        Container(
+                          height: 8,
+                          color: const Color(0xFFF5F5F5),
+                        ),
+                      ],
                       _buildVotingSection(),
                       Container(
                         height: 8,

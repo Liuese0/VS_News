@@ -12,7 +12,9 @@ import '../utils/constants.dart';
 import '../services/firestore_service.dart';
 import '../services/ad_service.dart';
 import '../providers/news_provider.dart';
+import '../models/models.dart';
 import 'my_page_screen.dart';
+import 'news_webview_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -870,23 +872,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final isFavorite = _favoriteNewsUrls.contains(news.newsUrl);
     final screenWidth = MediaQuery.of(context).size.width;
 
-    return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: screenWidth * 0.05,
-        vertical: 7.5,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-        border: Border.all(color: const Color(0xFFF0F0F0)),
-      ),
+    return GestureDetector(
+      onTap: () => _openNewsWebView(news),
+      child: Container(
+        margin: EdgeInsets.symmetric(
+          horizontal: screenWidth * 0.05,
+          vertical: 7.5,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(color: const Color(0xFFF0F0F0)),
+        ),
       child: Stack(
         children: [
           if (showParticipated || showFavoriteIcon)
@@ -1058,6 +1062,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ],
+      ),
+      ),
+    );
+  }
+
+  void _openNewsWebView(NewsDiscussionItem newsItem) async {
+    // NewsDiscussionItem에서 AutoCollectedNews로 변환
+    final newsProvider = Provider.of<NewsProvider>(context, listen: false);
+    AutoCollectedNews? news = newsProvider.getNewsByUrl(newsItem.newsUrl);
+
+    // 캐시에 없으면 기본 데이터로 AutoCollectedNews 생성
+    if (news == null) {
+      news = AutoCollectedNews(
+        title: newsItem.title,
+        description: newsItem.description ?? '',
+        url: newsItem.newsUrl,
+        imageUrl: null,
+        source: newsItem.source ?? '뉴스',
+        publishedAt: newsItem.lastCommentTime,
+        autoCategory: '일반',
+        autoTags: [],
+      );
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NewsWebViewScreen(news: news!),
       ),
     );
   }

@@ -50,6 +50,9 @@ dependencies:
   # URL 런처
   url_launcher: ^6.2.1
 
+  # WebView
+  webview_flutter: ^4.4.2
+
   # Google AdMob
   google_mobile_ads: ^5.1.0
 
