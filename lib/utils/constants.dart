@@ -8,7 +8,7 @@ class AppColors {
   static const Color primaryDark = Color(0xD6374151); // 더 진한 회색
   static const Color primaryLight = Color(0xD66B7280); // 밝은 회색
   static const Color primaryLighter = Color(0xD69CA3AF); // 더 밝은 회색
-
+  static const Color textColor = textPrimary;
   static const Color secondaryColor = Color(0xD66B7280);
   static const Color backgroundColor = Color(0xD6F9FAFB); // 연한 회색 배경
   static const Color headerBackground = Color(0xD6E5E7EB); // 헤더 배경 (연한 회색)
@@ -155,6 +155,9 @@ class ApiConstants {
 
   // 뉴스 API 엔드포인트
   static const String newsApiBaseUrl = 'https://newsapi.org/v2';
+
+  // Gemini API 키
+  static const String geminiApiKey = 'YOUR_GEMINI_API_KEY_HERE'; // TODO: 실제 API 키로 교체하세요
 
   // 한국 뉴스 소스들
   static const List<String> koreanNewsSources = [
