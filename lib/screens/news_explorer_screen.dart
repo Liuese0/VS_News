@@ -13,6 +13,8 @@ import '../providers/auth_provider.dart';
 import '../providers/news_comment_provider.dart';
 import '../providers/news_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/gemini_service.dart';
+import 'web_view_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -1203,6 +1205,11 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   String? _replyingToCommentId;
   String? _replyingToNickname;
 
+  // 요약 관련 상태
+  bool _isLoadingSummary = false;
+  String? _summary;
+  bool _showSummary = false;
+
   @override
   void initState() {
     super.initState();
@@ -1282,6 +1289,65 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
     setState(() {
       _voteStats = stats;
     });
+  }
+
+  Future<void> _generateSummary() async {
+    if (_isLoadingSummary) return;
+
+    setState(() {
+      _isLoadingSummary = true;
+    });
+
+    try {
+      final summary = await GeminiService.summarizeNews(
+        title: widget.news.title,
+        description: widget.news.description,
+        url: widget.news.url,
+        category: widget.news.autoCategory,
+      );
+
+      setState(() {
+        _summary = summary;
+        _showSummary = true;
+        _isLoadingSummary = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingSummary = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('요약 생성 중 오류가 발생했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _openWebView() {
+    String url = widget.news.url;
+
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('뉴스 링크가 없습니다'),
+          backgroundColor: AppColors.errorColor,
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WebViewScreen(
+          url: url,
+          title: widget.news.title,
+        ),
+      ),
+    );
   }
 
   @override
@@ -1423,64 +1489,12 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ),
           ),
           SizedBox(height: screenWidth * 0.06),
+          // 원문 보기 버튼
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () async {
-                String url = widget.news.url;
-
-                if (url.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('뉴스 링크가 없습니다'),
-                      backgroundColor: AppColors.errorColor,
-                    ),
-                  );
-                  return;
-                }
-
-                if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                  url = 'https://$url';
-                }
-
-                try {
-                  final uri = Uri.parse(url);
-
-                  if (await canLaunchUrl(uri)) {
-                    final launched = await launchUrl(
-                      uri,
-                      mode: LaunchMode.externalApplication,
-                    );
-
-                    if (!launched && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('브라우저를 열 수 없습니다'),
-                          backgroundColor: AppColors.errorColor,
-                        ),
-                      );
-                    }
-                  } else if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('이 링크를 열 수 없습니다: $url'),
-                        backgroundColor: AppColors.errorColor,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('링크 형식이 올바르지 않습니다'),
-                        backgroundColor: AppColors.errorColor,
-                      ),
-                    );
-                  }
-                }
-              },
-              icon: Icon(Icons.open_in_new, size: screenWidth * 0.045),
+              onPressed: _openWebView,
+              icon: Icon(Icons.open_in_browser, size: screenWidth * 0.045),
               label: Text(
                 '원문 보기',
                 style: TextStyle(fontSize: screenWidth * 0.037),
@@ -1495,6 +1509,105 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               ),
             ),
           ),
+          SizedBox(height: screenWidth * 0.03),
+          // 요약하기 버튼
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isLoadingSummary ? null : _generateSummary,
+              icon: _isLoadingSummary
+                  ? SizedBox(
+                width: screenWidth * 0.045,
+                height: screenWidth * 0.045,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    const Color(0xD66B7280),
+                  ),
+                ),
+              )
+                  : Icon(Icons.auto_awesome, size: screenWidth * 0.045),
+              label: Text(
+                _isLoadingSummary ? '요약 생성 중...' : '요약하기',
+                style: TextStyle(fontSize: screenWidth * 0.037),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xD68B5CF6),
+                side: const BorderSide(color: Color(0xD68B5CF6)),
+                padding: EdgeInsets.symmetric(vertical: screenWidth * 0.035),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          // 요약 내용 표시
+          if (_showSummary && _summary != null) ...[
+            SizedBox(height: screenWidth * 0.04),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(screenWidth * 0.04),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xD68B5CF6),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.auto_awesome,
+                            size: screenWidth * 0.04,
+                            color: const Color(0xD68B5CF6),
+                          ),
+                          SizedBox(width: screenWidth * 0.02),
+                          Text(
+                            'AI 요약',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.038,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xD68B5CF6),
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.close,
+                          size: screenWidth * 0.045,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _showSummary = false;
+                          });
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  Text(
+                    _summary!,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.035,
+                      height: 1.6,
+                      color: const Color(0xFF444444),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
