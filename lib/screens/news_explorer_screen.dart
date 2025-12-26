@@ -1219,6 +1219,9 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   String? _replyingToCommentId;
   String? _replyingToNickname;
 
+  // 댓글 필터 상태: 'all', 'pro', 'con'
+  String _selectedStanceFilter = 'all';
+
   // 요약 관련 상태
   bool _isLoadingSummary = false;
   String? _summary;
@@ -2020,6 +2023,24 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
     );
   }
 
+  // 필터링된 댓글 목록 (대댓글 제외)
+  List<NewsComment> get _filteredComments {
+    // 부모 댓글만 필터링 (대댓글 제외)
+    final parentComments = _comments.where((comment) => !comment.isReply).toList();
+
+    if (_selectedStanceFilter == 'all') {
+      return parentComments;
+    } else if (_selectedStanceFilter == 'pro') {
+      return parentComments.where((comment) => comment.isPro).toList();
+    } else if (_selectedStanceFilter == 'neutral') {
+      return parentComments.where((comment) => comment.isNeutral).toList();
+    } else if (_selectedStanceFilter == 'con') {
+      return parentComments.where((comment) => comment.isCon).toList();
+    }
+
+    return parentComments;
+  }
+
   Widget _buildDiscussionSection() {
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -2063,6 +2084,19 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   ),
                 ),
               ),
+            ],
+          ),
+          SizedBox(height: screenWidth * 0.03),
+          // 댓글 필터 버튼
+          Row(
+            children: [
+              _buildFilterButton('전체', 'all', screenWidth),
+              SizedBox(width: screenWidth * 0.02),
+              _buildFilterButton('찬성', 'pro', screenWidth),
+              SizedBox(width: screenWidth * 0.02),
+              _buildFilterButton('중립', 'neutral', screenWidth),
+              SizedBox(width: screenWidth * 0.02),
+              _buildFilterButton('반대', 'con', screenWidth),
             ],
           ),
           SizedBox(height: screenWidth * 0.03),
@@ -2153,11 +2187,70 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               _buildCommentInput(),
             SizedBox(height: screenWidth * 0.06),
           ],
-          if (_comments.isEmpty)
+          if (_filteredComments.isEmpty)
             _buildEmptyComments()
           else
-            ..._comments.map((comment) => _buildCommentItem(comment)),
+            ..._filteredComments.map((comment) => _buildCommentItem(comment)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterButton(String label, String filterValue, double screenWidth) {
+    final isSelected = _selectedStanceFilter == filterValue;
+
+    // 각 필터별 색상 설정
+    Color buttonColor;
+    Color textColor;
+    if (filterValue == 'pro') {
+      buttonColor = isSelected ? const Color(0xFF3B82F6) : Colors.white;
+      textColor = isSelected ? Colors.white : const Color(0xFF3B82F6);
+    } else if (filterValue == 'neutral') {
+      buttonColor = isSelected ? const Color(0xFFFF9800) : Colors.white;
+      textColor = isSelected ? Colors.white : const Color(0xFFFF9800);
+    } else if (filterValue == 'con') {
+      buttonColor = isSelected ? const Color(0xFFEF4444) : Colors.white;
+      textColor = isSelected ? Colors.white : const Color(0xFFEF4444);
+    } else {
+      buttonColor = isSelected ? const Color(0xD66B7280) : Colors.white;
+      textColor = isSelected ? Colors.white : const Color(0xD66B7280);
+    }
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedStanceFilter = filterValue;
+          });
+        },
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            vertical: screenWidth * 0.025,
+          ),
+          decoration: BoxDecoration(
+            color: buttonColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: filterValue == 'pro'
+                  ? const Color(0xFF3B82F6)
+                  : filterValue == 'neutral'
+                  ? const Color(0xFFFF9800)
+                  : filterValue == 'con'
+                  ? const Color(0xFFEF4444)
+                  : const Color(0xD66B7280),
+              width: 1.5,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: screenWidth * 0.035,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: textColor,
+            ),
+          ),
+        ),
       ),
     );
   }
