@@ -1,6 +1,5 @@
 // lib/services/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'auth_service.dart';
 
 class FirestoreService {
@@ -15,48 +14,76 @@ class FirestoreService {
   final Map<String, _NewsStats> _statsCache = {};
   final Duration _cacheDuration = const Duration(hours: 1); // 5분 → 1시간으로 연장
 
-  // ========== 댓글 제한 확인 ==========
+  // ========== 댓글 제한 확인 (서버 시간 기반) ==========
 
-  /// 오늘 작성한 댓글 수 확인
+  /// 오늘 작성한 댓글 수 확인 (UTC 기준, 서버 타임스탬프 사용)
   Future<int> getTodayCommentCount() async {
     final uid = await _authService.getCurrentUid();
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     final doc = await _firestore
         .collection('users')
         .doc(uid)
         .collection('dailyComments')
-        .doc(today)
+        .doc('current')  // 고정 문서 ID 사용
         .get();
 
     if (!doc.exists) return 0;
 
     final data = doc.data()!;
-    final lastReset = (data['lastReset'] as Timestamp).toDate();
-    final now = DateTime.now();
+    final lastReset = (data['lastReset'] as Timestamp).toDate().toUtc();
+    final now = DateTime.now().toUtc();
 
-    // 자정이 지났으면 리셋
-    if (now.day != lastReset.day) {
-      return 0;
+    // UTC 날짜 비교 (년-월-일만 비교)
+    if (lastReset.year != now.year ||
+        lastReset.month != now.month ||
+        lastReset.day != now.day) {
+      return 0;  // 날짜가 바뀌었으면 0 반환
     }
 
     return data['count'] ?? 0;
   }
 
-  /// 일일 댓글 카운트 증가
+  /// 일일 댓글 카운트 증가 (UTC 기준, 서버 타임스탬프 사용)
   Future<void> _incrementDailyCommentCount() async {
     final uid = await _authService.getCurrentUid();
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-    await _firestore
+    final docRef = _firestore
         .collection('users')
         .doc(uid)
         .collection('dailyComments')
-        .doc(today)
-        .set({
-      'count': FieldValue.increment(1),
-      'lastReset': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+        .doc('current');  // 고정 문서 ID 사용
+
+    await _firestore.runTransaction((transaction) async {
+      final doc = await transaction.get(docRef);
+
+      if (!doc.exists) {
+        // 첫 댓글 작성
+        transaction.set(docRef, {
+          'count': 1,
+          'lastReset': FieldValue.serverTimestamp(),
+        });
+      } else {
+        final data = doc.data()!;
+        final lastReset = (data['lastReset'] as Timestamp).toDate().toUtc();
+        final now = DateTime.now().toUtc();
+
+        // UTC 날짜가 바뀌었는지 확인 (년-월-일 비교)
+        if (lastReset.year != now.year ||
+            lastReset.month != now.month ||
+            lastReset.day != now.day) {
+          // 날짜가 바뀌었으면 카운트 리셋
+          transaction.update(docRef, {
+            'count': 1,
+            'lastReset': FieldValue.serverTimestamp(),
+          });
+        } else {
+          // 같은 날이면 카운트 증가
+          transaction.update(docRef, {
+            'count': FieldValue.increment(1),
+            'lastReset': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    });
   }
 
   // ========== 즐겨찾기 관리 (최대 10개 제한) ==========
