@@ -1296,27 +1296,38 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
     setState(() {
       _isLoadingSummary = true;
+      _summary = ''; // 초기화
+      _showSummary = true; // 스트리밍 시작 시 즉시 표시
     });
 
     try {
-      final summary = await GeminiService.summarizeNews(
+      final stream = GeminiService.summarizeNewsStream(
         title: widget.news.title,
         description: widget.news.description,
         url: widget.news.url,
         category: widget.news.autoCategory,
       );
 
-      setState(() {
-        _summary = summary;
-        _showSummary = true;
-        _isLoadingSummary = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoadingSummary = false;
-      });
+      await for (final text in stream) {
+        if (mounted) {
+          setState(() {
+            _summary = text;
+          });
+        }
+      }
 
       if (mounted) {
+        setState(() {
+          _isLoadingSummary = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingSummary = false;
+          _summary = '요약 생성 중 오류가 발생했습니다: $e';
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('요약 생성 중 오류가 발생했습니다: $e'),
