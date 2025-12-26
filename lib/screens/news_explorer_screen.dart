@@ -1716,7 +1716,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                           child: Container(
                             height: 8,
                             decoration: BoxDecoration(
-                              color: const Color(0xD66B7280),
+                              color: Colors.green,
                               borderRadius: _voteStats['neutral']! == 0 && _voteStats['con']! == 0
                                   ? BorderRadius.circular(4)
                                   : const BorderRadius.only(
@@ -1732,7 +1732,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                           child: Container(
                             height: 8,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF9E9E9E),
+                              color: Colors.orange,
                               borderRadius: _voteStats['pro']! == 0 && _voteStats['con']! == 0
                                   ? BorderRadius.circular(4)
                                   : BorderRadius.zero,
@@ -1745,7 +1745,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                           child: Container(
                             height: 8,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF888888),
+                              color: Colors.red,
                               borderRadius: _voteStats['pro']! == 0 && _voteStats['neutral']! == 0
                                   ? BorderRadius.circular(4)
                                   : const BorderRadius.only(
@@ -1779,7 +1779,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                               width: screenWidth * 0.03,
                               height: screenWidth * 0.03,
                               decoration: const BoxDecoration(
-                                color: Color(0xD66B7280),
+                                color: Colors.green,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -1805,7 +1805,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                               width: screenWidth * 0.03,
                               height: screenWidth * 0.03,
                               decoration: const BoxDecoration(
-                                color: Color(0xFF9E9E9E),
+                                color: Colors.orange,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -1831,7 +1831,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                               width: screenWidth * 0.03,
                               height: screenWidth * 0.03,
                               decoration: const BoxDecoration(
-                                color: Color(0xFF888888),
+                                color: Colors.red,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -1882,7 +1882,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                     label: '찬성',
                     icon: Icons.thumb_up_outlined,
                     stance: 'pro',
-                    color: const Color(0xD66B7280),
+                    color: Colors.green,
                   ),
                 ),
                 SizedBox(width: screenWidth * 0.02),
@@ -1891,7 +1891,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                     label: '중립',
                     icon: Icons.remove_outlined,
                     stance: 'neutral',
-                    color: const Color(0xFF9E9E9E),
+                    color: Colors.orange,
                   ),
                 ),
                 SizedBox(width: screenWidth * 0.02),
@@ -1900,7 +1900,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                     label: '반대',
                     icon: Icons.thumb_down_outlined,
                     stance: 'con',
-                    color: const Color(0xFF888888),
+                    color: Colors.red,
                   ),
                 ),
               ],
@@ -2165,10 +2165,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   Widget _buildCommentInput({String? parentId, String? parentNickname}) {
     final stanceLabel = _userVote == 'pro' ? '찬성' : _userVote == 'neutral' ? '중립' : '반대';
     final stanceColor = _userVote == 'pro'
-        ? const Color(0xD66B7280)
+        ? Colors.green
         : _userVote == 'neutral'
-        ? const Color(0xFF9E9E9E)
-        : const Color(0xFF888888);
+        ? Colors.orange
+        : Colors.red;
     final screenWidth = MediaQuery.of(context).size.width;
 
     final controller = parentId != null ? _replyController : _commentController;
@@ -2424,10 +2424,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               borderRadius: BorderRadius.circular(15),
               border: Border.all(
                 color: comment.isPro
-                    ? const Color(0xD66B7280).withOpacity(0.3)
+                    ? Colors.green.withOpacity(0.3)
                     : comment.isNeutral
-                    ? const Color(0xFF9E9E9E).withOpacity(0.3)
-                    : const Color(0xFF888888).withOpacity(0.3),
+                    ? Colors.orange.withOpacity(0.3)
+                    : Colors.red.withOpacity(0.3),
               ),
               boxShadow: [
                 BoxShadow(
@@ -2449,10 +2449,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       ),
                       decoration: BoxDecoration(
                         color: comment.isPro
-                            ? const Color(0xD66B7280)
+                            ? Colors.green
                             : comment.isNeutral
-                            ? const Color(0xFF9E9E9E)
-                            : const Color(0xFF888888),
+                            ? Colors.orange
+                            : Colors.red,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
@@ -2589,10 +2589,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: reply.isPro
-                            ? const Color(0xD66B7280).withOpacity(0.2)
+                            ? Colors.green.withOpacity(0.2)
                             : reply.isNeutral
-                            ? const Color(0xFF9E9E9E).withOpacity(0.2)
-                            : const Color(0xFF888888).withOpacity(0.2),
+                            ? Colors.orange.withOpacity(0.2)
+                            : Colors.red.withOpacity(0.2),
                       ),
                     ),
                     child: Column(
@@ -2613,10 +2613,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                               ),
                               decoration: BoxDecoration(
                                 color: reply.isPro
-                                    ? const Color(0xD66B7280).withOpacity(0.1)
+                                    ? Colors.green.withOpacity(0.1)
                                     : reply.isNeutral
-                                    ? const Color(0xFF9E9E9E).withOpacity(0.1)
-                                    : const Color(0xFF888888).withOpacity(0.1),
+                                    ? Colors.orange.withOpacity(0.1)
+                                    : Colors.red.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -2624,10 +2624,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                                 style: TextStyle(
                                   fontSize: screenWidth * 0.025,
                                   color: reply.isPro
-                                      ? const Color(0xD66B7280)
+                                      ? Colors.green
                                       : reply.isNeutral
-                                      ? const Color(0xFF9E9E9E)
-                                      : const Color(0xFF888888),
+                                      ? Colors.orange
+                                      : Colors.red,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -2750,7 +2750,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                 label: '찬성',
                 icon: Icons.thumb_up_outlined,
                 stance: 'pro',
-                color: const Color(0xD66B7280),
+                color: Colors.green,
                 screenWidth: screenWidth,
               ),
             if (_userVote != 'neutral')
@@ -2758,7 +2758,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                 label: '중립',
                 icon: Icons.remove_outlined,
                 stance: 'neutral',
-                color: const Color(0xFF9E9E9E),
+                color: Colors.orange,
                 screenWidth: screenWidth,
               ),
             if (_userVote != 'con')
@@ -2766,7 +2766,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                 label: '반대',
                 icon: Icons.thumb_down_outlined,
                 stance: 'con',
-                color: const Color(0xFF888888),
+                color: Colors.red,
                 screenWidth: screenWidth,
               ),
           ],
