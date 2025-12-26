@@ -25,6 +25,8 @@ class CommentWidget extends StatelessWidget {
         border: Border.all(
           color: comment.isPro
               ? Colors.blue.withOpacity(0.3)
+              : comment.isNeutral
+              ? Colors.grey.withOpacity(0.3)
               : Colors.red.withOpacity(0.3),
           width: 1,
         ),
@@ -50,14 +52,20 @@ class CommentWidget extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: comment.isPro
                       ? Colors.blue.withOpacity(0.1)
+                      : comment.isNeutral
+                      ? Colors.grey.withOpacity(0.1)
                       : Colors.red.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  comment.isPro ? '찬성' : '반대',
+                  comment.isPro ? '찬성' : comment.isNeutral ? '중립' : '반대',
                   style: TextStyle(
                     fontSize: screenWidth * 0.03,
-                    color: comment.isPro ? Colors.blue : Colors.red,
+                    color: comment.isPro
+                        ? Colors.blue
+                        : comment.isNeutral
+                        ? Colors.grey
+                        : Colors.red,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

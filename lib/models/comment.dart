@@ -41,4 +41,6 @@ class Comment {
   }
 
   bool get isPro => stance == 'pro';
+  bool get isNeutral => stance == 'neutral';
+  bool get isCon => stance == 'con';
 }

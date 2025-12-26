@@ -1210,7 +1210,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
   List<NewsComment> _comments = [];
   String? _userVote;
-  Map<String, int> _voteStats = {'pro': 0, 'con': 0};
+  Map<String, int> _voteStats = {'pro': 0, 'neutral': 0, 'con': 0};
 
   bool _isSubmittingVote = false;
   bool _isSubmittingComment = false;
@@ -1629,9 +1629,12 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 
   Widget _buildVotingSection() {
-    final totalVotes = _voteStats['pro']! + _voteStats['con']!;
+    final totalVotes = _voteStats['pro']! + _voteStats['neutral']! + _voteStats['con']!;
     final proPercentage = totalVotes > 0
         ? (_voteStats['pro']! / totalVotes * 100).round()
+        : 0;
+    final neutralPercentage = totalVotes > 0
+        ? (_voteStats['neutral']! / totalVotes * 100).round()
         : 0;
     final conPercentage = totalVotes > 0
         ? (_voteStats['con']! / totalVotes * 100).round()
@@ -1685,7 +1688,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       SizedBox(width: screenWidth * 0.02),
                       Flexible(
                         child: Text(
-                          '${_userVote == 'pro' ? '찬성' : '반대'}에 투표하셨습니다',
+                          '${_userVote == 'pro' ? '찬성' : _userVote == 'neutral' ? '중립' : '반대'}에 투표하셨습니다',
                           style: TextStyle(
                             fontSize: screenWidth * 0.035,
                             fontWeight: FontWeight.bold,
@@ -1707,21 +1710,35 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   SizedBox(height: screenWidth * 0.04),
                   Row(
                     children: [
-                      Expanded(
-                        flex: _voteStats['pro']! > 0 ? _voteStats['pro']! : 1,
-                        child: Container(
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: const Color(0xD66B7280),
-                            borderRadius: totalVotes == 0 || _voteStats['con']! == 0
-                                ? BorderRadius.circular(4)
-                                : const BorderRadius.only(
-                              topLeft: Radius.circular(4),
-                              bottomLeft: Radius.circular(4),
+                      if (_voteStats['pro']! > 0)
+                        Expanded(
+                          flex: _voteStats['pro']!,
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: const Color(0xD66B7280),
+                              borderRadius: _voteStats['neutral']! == 0 && _voteStats['con']! == 0
+                                  ? BorderRadius.circular(4)
+                                  : const BorderRadius.only(
+                                topLeft: Radius.circular(4),
+                                bottomLeft: Radius.circular(4),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      if (_voteStats['neutral']! > 0)
+                        Expanded(
+                          flex: _voteStats['neutral']!,
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF9E9E9E),
+                              borderRadius: _voteStats['pro']! == 0 && _voteStats['con']! == 0
+                                  ? BorderRadius.circular(4)
+                                  : BorderRadius.zero,
+                            ),
+                          ),
+                        ),
                       if (_voteStats['con']! > 0)
                         Expanded(
                           flex: _voteStats['con']!,
@@ -1729,12 +1746,22 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                             height: 8,
                             decoration: BoxDecoration(
                               color: const Color(0xFF888888),
-                              borderRadius: _voteStats['pro']! == 0
+                              borderRadius: _voteStats['pro']! == 0 && _voteStats['neutral']! == 0
                                   ? BorderRadius.circular(4)
                                   : const BorderRadius.only(
                                 topRight: Radius.circular(4),
                                 bottomRight: Radius.circular(4),
                               ),
+                            ),
+                          ),
+                        ),
+                      if (totalVotes == 0)
+                        Expanded(
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0E0E0),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                           ),
                         ),
@@ -1756,12 +1783,38 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                                 shape: BoxShape.circle,
                               ),
                             ),
-                            SizedBox(width: screenWidth * 0.015),
+                            SizedBox(width: screenWidth * 0.01),
                             Flexible(
                               child: Text(
-                                '찬성 $proPercentage% (${_voteStats['pro']}표)',
+                                '찬성 $proPercentage% (${_voteStats['pro']})',
                                 style: TextStyle(
-                                  fontSize: screenWidth * 0.032,
+                                  fontSize: screenWidth * 0.028,
+                                  color: const Color(0xFF666666),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: screenWidth * 0.03,
+                              height: screenWidth * 0.03,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF9E9E9E),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            SizedBox(width: screenWidth * 0.01),
+                            Flexible(
+                              child: Text(
+                                '중립 $neutralPercentage% (${_voteStats['neutral']})',
+                                style: TextStyle(
+                                  fontSize: screenWidth * 0.028,
                                   color: const Color(0xFF666666),
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -1782,12 +1835,12 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                                 shape: BoxShape.circle,
                               ),
                             ),
-                            SizedBox(width: screenWidth * 0.015),
+                            SizedBox(width: screenWidth * 0.01),
                             Flexible(
                               child: Text(
-                                '반대 $conPercentage% (${_voteStats['con']}표)',
+                                '반대 $conPercentage% (${_voteStats['con']})',
                                 style: TextStyle(
-                                  fontSize: screenWidth * 0.032,
+                                  fontSize: screenWidth * 0.028,
                                   color: const Color(0xFF666666),
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -1832,7 +1885,16 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                     color: const Color(0xD66B7280),
                   ),
                 ),
-                SizedBox(width: screenWidth * 0.03),
+                SizedBox(width: screenWidth * 0.02),
+                Expanded(
+                  child: _buildVoteButton(
+                    label: '중립',
+                    icon: Icons.remove_outlined,
+                    stance: 'neutral',
+                    color: const Color(0xFF9E9E9E),
+                  ),
+                ),
+                SizedBox(width: screenWidth * 0.02),
                 Expanded(
                   child: _buildVoteButton(
                     label: '반대',
@@ -2101,9 +2163,11 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 
   Widget _buildCommentInput({String? parentId, String? parentNickname}) {
-    final stanceLabel = _userVote == 'pro' ? '찬성' : '반대';
+    final stanceLabel = _userVote == 'pro' ? '찬성' : _userVote == 'neutral' ? '중립' : '반대';
     final stanceColor = _userVote == 'pro'
         ? const Color(0xD66B7280)
+        : _userVote == 'neutral'
+        ? const Color(0xFF9E9E9E)
         : const Color(0xFF888888);
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -2142,6 +2206,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                     Icon(
                       _userVote == 'pro'
                           ? Icons.thumb_up
+                          : _userVote == 'neutral'
+                          ? Icons.remove
                           : Icons.thumb_down,
                       size: screenWidth * 0.04,
                       color: stanceColor,
@@ -2359,6 +2425,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               border: Border.all(
                 color: comment.isPro
                     ? const Color(0xD66B7280).withOpacity(0.3)
+                    : comment.isNeutral
+                    ? const Color(0xFF9E9E9E).withOpacity(0.3)
                     : const Color(0xFF888888).withOpacity(0.3),
               ),
               boxShadow: [
@@ -2382,6 +2450,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       decoration: BoxDecoration(
                         color: comment.isPro
                             ? const Color(0xD66B7280)
+                            : comment.isNeutral
+                            ? const Color(0xFF9E9E9E)
                             : const Color(0xFF888888),
                         borderRadius: BorderRadius.circular(6),
                       ),
@@ -2391,13 +2461,15 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                           Icon(
                             comment.isPro
                                 ? Icons.thumb_up
+                                : comment.isNeutral
+                                ? Icons.remove
                                 : Icons.thumb_down,
                             size: screenWidth * 0.03,
                             color: Colors.white,
                           ),
                           SizedBox(width: screenWidth * 0.01),
                           Text(
-                            comment.isPro ? '찬성' : '반대',
+                            comment.isPro ? '찬성' : comment.isNeutral ? '중립' : '반대',
                             style: TextStyle(
                               fontSize: screenWidth * 0.027,
                               color: Colors.white,
@@ -2518,6 +2590,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       border: Border.all(
                         color: reply.isPro
                             ? const Color(0xD66B7280).withOpacity(0.2)
+                            : reply.isNeutral
+                            ? const Color(0xFF9E9E9E).withOpacity(0.2)
                             : const Color(0xFF888888).withOpacity(0.2),
                       ),
                     ),
@@ -2540,15 +2614,19 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                               decoration: BoxDecoration(
                                 color: reply.isPro
                                     ? const Color(0xD66B7280).withOpacity(0.1)
+                                    : reply.isNeutral
+                                    ? const Color(0xFF9E9E9E).withOpacity(0.1)
                                     : const Color(0xFF888888).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                reply.isPro ? '찬성' : '반대',
+                                reply.isPro ? '찬성' : reply.isNeutral ? '중립' : '반대',
                                 style: TextStyle(
                                   fontSize: screenWidth * 0.025,
                                   color: reply.isPro
                                       ? const Color(0xD66B7280)
+                                      : reply.isNeutral
+                                      ? const Color(0xFF9E9E9E)
                                       : const Color(0xFF888888),
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -2636,9 +2714,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   }
 
   void _showChangeVoteDialog() {
-    final currentStance = _userVote == 'pro' ? '찬성' : '반대';
-    final newStance = _userVote == 'pro' ? 'con' : 'pro';
-    final newStanceLabel = newStance == 'pro' ? '찬성' : '반대';
+    final currentStance = _userVote == 'pro' ? '찬성' : _userVote == 'neutral' ? '중립' : '반대';
     final screenWidth = MediaQuery.of(context).size.width;
 
     showDialog(
@@ -2647,11 +2723,53 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           '입장 변경',
-          style: TextStyle(fontSize: screenWidth * 0.045),
+          style: TextStyle(fontSize: screenWidth * 0.045, fontWeight: FontWeight.bold),
         ),
-        content: Text(
-          '$currentStance에서 $newStanceLabel으로 입장을 변경하시겠습니까?',
-          style: TextStyle(fontSize: screenWidth * 0.037),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '현재 입장: $currentStance',
+              style: TextStyle(
+                fontSize: screenWidth * 0.037,
+                color: const Color(0xFF666666),
+              ),
+            ),
+            SizedBox(height: screenWidth * 0.04),
+            Text(
+              '변경할 입장을 선택해주세요:',
+              style: TextStyle(
+                fontSize: screenWidth * 0.037,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: screenWidth * 0.03),
+            if (_userVote != 'pro')
+              _buildStanceOption(
+                label: '찬성',
+                icon: Icons.thumb_up_outlined,
+                stance: 'pro',
+                color: const Color(0xD66B7280),
+                screenWidth: screenWidth,
+              ),
+            if (_userVote != 'neutral')
+              _buildStanceOption(
+                label: '중립',
+                icon: Icons.remove_outlined,
+                stance: 'neutral',
+                color: const Color(0xFF9E9E9E),
+                screenWidth: screenWidth,
+              ),
+            if (_userVote != 'con')
+              _buildStanceOption(
+                label: '반대',
+                icon: Icons.thumb_down_outlined,
+                stance: 'con',
+                color: const Color(0xFF888888),
+                screenWidth: screenWidth,
+              ),
+          ],
         ),
         actions: [
           TextButton(
@@ -2661,20 +2779,45 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               style: TextStyle(fontSize: screenWidth * 0.037),
             ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _submitVote(newStance);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xD66B7280),
-            ),
-            child: Text(
-              '변경',
-              style: TextStyle(fontSize: screenWidth * 0.037),
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStanceOption({
+    required String label,
+    required IconData icon,
+    required String stance,
+    required Color color,
+    required double screenWidth,
+  }) {
+    return InkWell(
+      onTap: () {
+        Navigator.pop(context);
+        _submitVote(stance);
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: EdgeInsets.only(bottom: screenWidth * 0.02),
+        padding: EdgeInsets.all(screenWidth * 0.03),
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withOpacity(0.5)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: screenWidth * 0.05),
+            SizedBox(width: screenWidth * 0.03),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: screenWidth * 0.04,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2848,5 +2991,7 @@ class NewsComment {
   });
 
   bool get isPro => stance == 'pro';
+  bool get isNeutral => stance == 'neutral';
+  bool get isCon => stance == 'con';
   bool get isReply => parentId != null;
 }

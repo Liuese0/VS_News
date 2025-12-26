@@ -194,10 +194,10 @@ class FirestoreService {
 
   // ========== 투표 관리 ==========
 
-  /// 투표하기 (찬성/반대)
+  /// 투표하기 (찬성/중립/반대)
   Future<void> vote({
     required String newsUrl,
-    required String stance, // 'pro' or 'con'
+    required String stance, // 'pro', 'neutral', or 'con'
     String? newsTitle,
     String? newsDescription,
     String? newsImageUrl,
@@ -230,12 +230,21 @@ class FirestoreService {
           if (statsDoc.exists) {
             final data = statsDoc.data()!;
             final proVotes = (data['proVotes'] ?? 0) as int;
+            final neutralVotes = (data['neutralVotes'] ?? 0) as int;
             final conVotes = (data['conVotes'] ?? 0) as int;
 
-            transaction.update(statsRef, {
-              'proVotes': stance == 'pro' ? proVotes + 1 : proVotes - 1,
-              'conVotes': stance == 'con' ? conVotes + 1 : conVotes - 1,
-            });
+            // 이전 입장에서 -1
+            final updateData = <String, dynamic>{};
+            if (oldStance == 'pro') updateData['proVotes'] = proVotes - 1;
+            if (oldStance == 'neutral') updateData['neutralVotes'] = neutralVotes - 1;
+            if (oldStance == 'con') updateData['conVotes'] = conVotes - 1;
+
+            // 새로운 입장에 +1
+            if (stance == 'pro') updateData['proVotes'] = proVotes + (oldStance == 'pro' ? 0 : 1);
+            if (stance == 'neutral') updateData['neutralVotes'] = neutralVotes + (oldStance == 'neutral' ? 0 : 1);
+            if (stance == 'con') updateData['conVotes'] = conVotes + (oldStance == 'con' ? 0 : 1);
+
+            transaction.update(statsRef, updateData);
           }
         }
       } else {
@@ -255,6 +264,7 @@ class FirestoreService {
 
           transaction.update(statsRef, {
             if (stance == 'pro') 'proVotes': FieldValue.increment(1),
+            if (stance == 'neutral') 'neutralVotes': FieldValue.increment(1),
             if (stance == 'con') 'conVotes': FieldValue.increment(1),
             if (isNewParticipant) 'participants': FieldValue.arrayUnion([uid]),
             if (isNewParticipant) 'participantCount': FieldValue.increment(1),
@@ -272,6 +282,7 @@ class FirestoreService {
           transaction.set(statsRef, {
             'newsUrl': newsUrl,
             'proVotes': stance == 'pro' ? 1 : 0,
+            'neutralVotes': stance == 'neutral' ? 1 : 0,
             'conVotes': stance == 'con' ? 1 : 0,
             'commentCount': 0,
             'participantCount': 1,
@@ -312,11 +323,12 @@ class FirestoreService {
       final data = doc.data()!;
       return {
         'pro': data['proVotes'] ?? 0,
+        'neutral': data['neutralVotes'] ?? 0,
         'con': data['conVotes'] ?? 0,
       };
     }
 
-    return {'pro': 0, 'con': 0};
+    return {'pro': 0, 'neutral': 0, 'con': 0};
   }
 
   String _generateVoteId(String uid, String newsUrl) {
