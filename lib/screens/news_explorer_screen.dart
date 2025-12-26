@@ -702,6 +702,10 @@ class _ExploreScreenState extends State<ExploreScreen>
         ? _hasMore
         : newsProvider.hasMore(_selectedCategory);
 
+    // 배너 개수 계산: 맨 위 1개 + 10개마다 1개
+    final totalBanners = 1 + (_newsList.length / 10).floor();
+    final totalItems = _newsList.length + totalBanners + 1; // 뉴스 + 배너들 + 로딩/완료
+
     return RefreshIndicator(
       onRefresh: _loadNews,
       color: const Color(0xD66B7280),
@@ -713,15 +717,15 @@ class _ExploreScreenState extends State<ExploreScreen>
           top: 0,
           bottom: screenWidth * 0.05,
         ),
-        itemCount: _newsList.length + 2, // +1 배너 광고, +1 로딩/완료 인디케이터
+        itemCount: totalItems,
         itemBuilder: (context, index) {
-          // 배너 광고를 첫 번째 아이템으로 표시
+          // 맨 위 배너 광고
           if (index == 0) {
             return _buildBannerAd();
           }
 
           // 로딩/완료 인디케이터를 마지막에 표시
-          if (index == _newsList.length + 1) {
+          if (index == totalItems - 1) {
             if (_isLoadingMore) {
               return Padding(
                 padding: EdgeInsets.symmetric(vertical: screenWidth * 0.05),
@@ -748,8 +752,18 @@ class _ExploreScreenState extends State<ExploreScreen>
             return const SizedBox.shrink();
           }
 
-          // 실제 뉴스 아이템 (index - 1)
-          return _buildNewsCard(_newsList[index - 1], index - 1);
+          // 10개마다 중간 배너 광고 표시
+          // index가 11, 22, 33, ... 위치일 때 배너
+          int positionAfterFirstBanner = index - 1;
+          if (positionAfterFirstBanner % 11 == 10) {
+            return _buildBannerAd();
+          }
+
+          // 실제 뉴스 아이템 인덱스 계산
+          int additionalBanners = positionAfterFirstBanner ~/ 11;
+          int newsIndex = positionAfterFirstBanner - additionalBanners;
+
+          return _buildNewsCard(_newsList[newsIndex], newsIndex);
         },
       ),
     );
@@ -1296,38 +1310,27 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
     setState(() {
       _isLoadingSummary = true;
-      _summary = ''; // 초기화
-      _showSummary = true; // 스트리밍 시작 시 즉시 표시
     });
 
     try {
-      final stream = GeminiService.summarizeNewsStream(
+      final summary = await GeminiService.summarizeNews(
         title: widget.news.title,
         description: widget.news.description,
         url: widget.news.url,
         category: widget.news.autoCategory,
       );
 
-      await for (final text in stream) {
-        if (mounted) {
-          setState(() {
-            _summary = text;
-          });
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _isLoadingSummary = false;
-        });
-      }
+      setState(() {
+        _summary = summary;
+        _showSummary = true;
+        _isLoadingSummary = false;
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingSummary = false;
-          _summary = '요약 생성 중 오류가 발생했습니다: $e';
-        });
+      setState(() {
+        _isLoadingSummary = false;
+      });
 
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('요약 생성 중 오류가 발생했습니다: $e'),
@@ -1402,6 +1405,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                         height: 8,
                         color: const Color(0xFFF5F5F5),
                       ),
+                      _buildNewsDetailBannerAd(),
                       _buildDiscussionSection(),
                     ],
                   ),
@@ -1915,6 +1919,41 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNewsDetailBannerAd() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final adService = AdService();
+
+    if (!adService.isNewsDetailBannerAdLoaded || adService.newsDetailBannerAd == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: EdgeInsets.symmetric(
+        horizontal: screenWidth * 0.05,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFF0F0F0)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 50,
+          child: AdWidget(ad: adService.newsDetailBannerAd!),
+        ),
       ),
     );
   }

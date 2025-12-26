@@ -12,9 +12,11 @@ class AdService {
   RewardedAd? _rewardedAd;
   BannerAd? _bannerAd;
   BannerAd? _exploreBannerAd;  // ExploreScreen 전용 배너
+  BannerAd? _newsDetailBannerAd;  // NewsDetail 전용 배너
   bool _isAdLoaded = false;
   bool _isBannerAdLoaded = false;
   bool _isExploreBannerAdLoaded = false;
+  bool _isNewsDetailBannerAdLoaded = false;
   int _dailyAdCount = 0;
   static const int _maxDailyAds = 5;
   static const int _tokensPerAd = 10;
@@ -66,6 +68,7 @@ class AdService {
     _loadRewardedAd();
     _loadBannerAd();
     _loadExploreBannerAd();
+    _loadNewsDetailBannerAd();
   }
 
   /// 오늘 시청한 광고 개수 로드
@@ -111,6 +114,12 @@ class AdService {
 
   /// ExploreScreen 전용 배너 광고 가져오기
   BannerAd? get exploreBannerAd => _exploreBannerAd;
+
+  /// NewsDetail 전용 배너 광고 로드 여부
+  bool get isNewsDetailBannerAdLoaded => _isNewsDetailBannerAdLoaded;
+
+  /// NewsDetail 전용 배너 광고 가져오기
+  BannerAd? get newsDetailBannerAd => _newsDetailBannerAd;
 
   /// 배너 광고 로드
   void _loadBannerAd() {
@@ -166,6 +175,34 @@ class AdService {
     );
 
     _exploreBannerAd!.load();
+  }
+
+  /// NewsDetail 전용 배너 광고 로드
+  void _loadNewsDetailBannerAd() {
+    _newsDetailBannerAd = BannerAd(
+      adUnitId: _bannerAdUnitId,
+      size: AdSize.banner, // 320x50
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          _isNewsDetailBannerAdLoaded = true;
+          print('NewsDetail 배너 광고 로드 성공');
+        },
+        onAdFailedToLoad: (ad, error) {
+          print('NewsDetail 배너 광고 로드 실패: $error');
+          _isNewsDetailBannerAdLoaded = false;
+          ad.dispose();
+          _newsDetailBannerAd = null;
+
+          // 30초 후 재시도
+          Future.delayed(const Duration(seconds: 30), () {
+            _loadNewsDetailBannerAd();
+          });
+        },
+      ),
+    );
+
+    _newsDetailBannerAd!.load();
   }
 
   /// 보상형 광고 로드
@@ -285,6 +322,9 @@ class AdService {
     if (!_isExploreBannerAdLoaded) {
       _loadExploreBannerAd();
     }
+    if (!_isNewsDetailBannerAdLoaded) {
+      _loadNewsDetailBannerAd();
+    }
   }
 
   /// 리소스 정리
@@ -300,6 +340,10 @@ class AdService {
     _exploreBannerAd?.dispose();
     _exploreBannerAd = null;
     _isExploreBannerAdLoaded = false;
+
+    _newsDetailBannerAd?.dispose();
+    _newsDetailBannerAd = null;
+    _isNewsDetailBannerAdLoaded = false;
   }
 
   /// 광고 통계 정보
@@ -313,6 +357,7 @@ class AdService {
       'canWatchAd': canWatchAd,
       'isBannerAdLoaded': _isBannerAdLoaded,
       'isExploreBannerAdLoaded': _isExploreBannerAdLoaded,
+      'isNewsDetailBannerAdLoaded': _isNewsDetailBannerAdLoaded,
     };
   }
 }
