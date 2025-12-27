@@ -1233,6 +1233,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     title: '발언권',
                     description: '댓글 추가권 (1회)',
                     tokenCost: 25,
+                    itemType: 'speakingRightCount',
                     color: const Color(0xFF4CAF50),
                     screenWidth: screenWidth,
                   ),
@@ -1244,6 +1245,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     title: '발언연장권',
                     description: '50글자 추가권 (1회)',
                     tokenCost: 30,
+                    itemType: 'speakingExtensionCount',
                     color: const Color(0xFF2196F3),
                     screenWidth: screenWidth,
                   ),
@@ -1255,6 +1257,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     title: '즐겨찾기 영구 추가권',
                     description: '즐겨찾기 슬롯 1개 추가',
                     tokenCost: 100,
+                    itemType: 'permanentBookmarkSlots',
                     color: const Color(0xFFFF9800),
                     screenWidth: screenWidth,
                   ),
@@ -1274,11 +1277,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
     required String title,
     required String description,
     required int tokenCost,
+    required String itemType,
     required Color color,
     required double screenWidth,
   }) {
     final userInfo = authProvider.userInfo ?? {};
     final currentTokens = userInfo['tokenCount'] ?? 0;
+    final itemCount = userInfo[itemType] ?? 0;
     final canAfford = currentTokens >= tokenCost;
 
     return GestureDetector(
@@ -1292,9 +1297,23 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 '$title 구매',
                 style: TextStyle(fontSize: screenWidth * 0.045),
               ),
-              content: Text(
-                '$title을(를) $tokenCost 토큰에 구매하시겠습니까?',
-                style: TextStyle(fontSize: screenWidth * 0.037),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$title을(를) $tokenCost 토큰에 구매하시겠습니까?',
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                  ),
+                  SizedBox(height: screenWidth * 0.02),
+                  Text(
+                    '현재 보유: $itemCount개',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.033,
+                      color: const Color(0xFF666666),
+                    ),
+                  ),
+                ],
               ),
               actions: [
                 TextButton(
@@ -1320,8 +1339,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
           if (confirmed == true) {
             try {
-              // 토큰 차감
-              await _authService.decrementTokens(tokenCost);
+              // 아이템 구매 (토큰 차감 + 아이템 증가)
+              await _authService.purchaseItem(itemType, tokenCost);
               await authProvider.loadUserInfo();
 
               if (context.mounted) {
@@ -1411,6 +1430,15 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     style: TextStyle(
                       fontSize: screenWidth * 0.033,
                       color: canAfford ? const Color(0xFF666666) : Colors.grey.shade500,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.005),
+                  Text(
+                    '보유: $itemCount개',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.028,
+                      color: itemCount > 0 ? color : Colors.grey.shade400,
+                      fontWeight: itemCount > 0 ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ],
