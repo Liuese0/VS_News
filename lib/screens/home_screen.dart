@@ -1154,11 +1154,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
         }
       } else {
-        if (_favoriteNewsUrls.length >= 10) {
+        // 영구 슬롯을 고려한 한도 계산
+        final authProvider = context.read<AuthProvider>();
+        final userInfo = authProvider.userInfo ?? {};
+        final permanentSlots = userInfo['permanentBookmarkSlots'] ?? 0;
+        final maxLimit = 10 + permanentSlots;
+
+        if (_favoriteNewsUrls.length >= maxLimit) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('즐겨찾기는 최대 10개까지 가능합니다'),
+              SnackBar(
+                content: Text('즐겨찾기는 최대 $maxLimit개까지 가능합니다${permanentSlots > 0 ? ' (영구 슬롯 $permanentSlots개 포함)' : ''}'),
                 backgroundColor: AppColors.warningColor,
               ),
             );
