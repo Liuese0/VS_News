@@ -1300,6 +1300,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
     final itemCount = userInfo[itemType] ?? 0;
     final canAfford = currentTokens >= tokenCost;
 
+    // 영구 즐겨찾기 슬롯인 경우 현재 한도 표시
+    String displayDescription = description;
+    if (itemType == 'permanentBookmarkSlots') {
+      final currentLimit = 10 + itemCount;
+      displayDescription = '한도 영구 +1 (현재: $currentLimit개)';
+    }
+
     return GestureDetector(
       onTap: () async {
         if (canAfford) {
@@ -1358,17 +1365,29 @@ class _MyPageScreenState extends State<MyPageScreen> {
               await authProvider.loadUserInfo();
 
               if (context.mounted) {
+                final updatedUserInfo = authProvider.userInfo ?? {};
+                final newItemCount = updatedUserInfo[itemType] ?? 0;
+
+                String message = '$title을(를) 구매했습니다!';
+
+                // 영구 즐겨찾기 슬롯인 경우 한도 표시
+                if (itemType == 'permanentBookmarkSlots') {
+                  final newLimit = 10 + newItemCount;
+                  message = '$title 구매 완료!\n즐겨찾기 한도: $newLimit개';
+                }
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Row(
                       children: [
                         const Icon(Icons.check_circle, color: Colors.white),
                         const SizedBox(width: 8),
-                        Text('$title을(를) 구매했습니다!'),
+                        Expanded(child: Text(message)),
                       ],
                     ),
                     backgroundColor: const Color(0xFF4CAF50),
                     behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 3),
                   ),
                 );
                 Navigator.pop(context);
@@ -1440,7 +1459,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   ),
                   SizedBox(height: screenWidth * 0.01),
                   Text(
-                    description,
+                    displayDescription,
                     style: TextStyle(
                       fontSize: screenWidth * 0.033,
                       color: canAfford ? const Color(0xFF666666) : Colors.grey.shade500,
