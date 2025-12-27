@@ -12,7 +12,7 @@ class FirestoreService {
 
   // ========== 로컬 캐시 ==========
   final Map<String, _NewsStats> _statsCache = {};
-  final Duration _cacheDuration = const Duration(hours: 1); // 5분 → 1시간으로 연장
+  static const Duration _cacheDuration = Duration(hours: 1); // 5분 → 1시간으로 연장
 
   // ========== 댓글 제한 확인 (서버 시간 기반) ==========
 
@@ -895,5 +895,5 @@ class _NewsStats {
   });
 
   bool get isExpired =>
-      DateTime.now().difference(fetchedAt) > const Duration(hours: 1); // 1시간으로 변경
+      DateTime.now().difference(fetchedAt) > FirestoreService._cacheDuration;
 }
