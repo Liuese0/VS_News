@@ -88,14 +88,13 @@ class FirestoreService {
 
   // ========== 즐겨찾기 관리 (최대 10개 제한 + 영구 슬롯) ==========
 
-  /// 즐겨찾기 추가 (뉴스 메타데이터 포함, 최대 10개 제한 + 영구 슬롯)
+  /// 즐겨찾기 추가 (뉴스 메타데이터 포함, 최대 10개 + 영구 슬롯)
   Future<void> addFavorite(String newsUrl, {
     String? title,
     String? description,
     String? imageUrl,
     String? source,
     DateTime? publishedAt,
-    bool usePermanentSlot = false, // 영구 슬롯 사용 여부
   }) async {
     final uid = await _authService.getCurrentUid();
     final userInfo = await _authService.getUserInfo();
@@ -108,15 +107,10 @@ class FirestoreService {
         .get();
 
     final currentCount = currentFavorites.docs.length;
+    final maxLimit = 10 + permanentSlots; // 기본 10개 + 영구 슬롯
 
-    if (currentCount >= 10) {
-      // 10개를 초과하면 영구 슬롯 필요
-      if (!usePermanentSlot) {
-        throw Exception('즐겨찾기는 최대 10개까지 가능합니다. 영구 추가권을 사용하시겠습니까?');
-      }
-      if (permanentSlots <= 0) {
-        throw Exception('영구 즐겨찾기 슬롯이 부족합니다');
-      }
+    if (currentCount >= maxLimit) {
+      throw Exception('즐겨찾기는 최대 $maxLimit개까지 가능합니다${permanentSlots > 0 ? ' (영구 슬롯 $permanentSlots개 포함)' : ''}');
     }
 
     final favoriteId = _generateFavoriteId(uid, newsUrl);
@@ -147,11 +141,6 @@ class FirestoreService {
     );
 
     await batch.commit();
-
-    // 3. 영구 슬롯 사용 처리
-    if (usePermanentSlot && currentCount >= 10) {
-      await _authService.usePermanentBookmarkSlot();
-    }
   }
 
   /// 즐겨찾기 제거

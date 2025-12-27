@@ -194,14 +194,6 @@ class AuthService {
     });
   }
 
-  // 영구 즐겨찾기 슬롯 사용
-  Future<void> usePermanentBookmarkSlot() async {
-    final uid = await getCurrentUid();
-    await _firestore.collection('users').doc(uid).update({
-      'permanentBookmarkSlots': FieldValue.increment(-1),
-    });
-  }
-
   // 로그아웃
   Future<void> logout() async {
     await _secureStorage.delete(key: _uidKey);

@@ -246,6 +246,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
     final favorites = userInfo['favoriteCount'] ?? 0;
     final comments = userInfo['commentCount'] ?? 0;
     final tokens = userInfo['tokenCount'] ?? 0;
+    final permanentSlots = userInfo['permanentBookmarkSlots'] ?? 0;
+    final maxFavorites = 10 + permanentSlots;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
@@ -281,6 +283,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   icon: Icons.bookmark,
                   label: '즐겨찾기',
                   value: favorites.toString(),
+                  subLabel: '최대 $maxFavorites개',
                   color: const Color(0xFFFFD700),
                   screenWidth: screenWidth,
                 ),
@@ -312,6 +315,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     required String value,
     required Color color,
     required double screenWidth,
+    String? subLabel,
   }) {
     return Column(
       children: [
@@ -343,6 +347,16 @@ class _MyPageScreenState extends State<MyPageScreen> {
             color: const Color(0xFF666666),
           ),
         ),
+        if (subLabel != null) ...[
+          SizedBox(height: screenWidth * 0.005),
+          Text(
+            subLabel,
+            style: TextStyle(
+              fontSize: screenWidth * 0.025,
+              color: const Color(0xFF999999),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1255,7 +1269,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     authProvider: authProvider,
                     icon: Icons.bookmark_add,
                     title: '즐겨찾기 영구 추가권',
-                    description: '즐겨찾기 슬롯 1개 추가',
+                    description: '한도 영구 +1 (누적)',
                     tokenCost: 100,
                     itemType: 'permanentBookmarkSlots',
                     color: const Color(0xFFFF9800),
@@ -1620,7 +1634,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   ),
                   _buildHelpItem(
                     '토큰은 어디에 사용하나요?',
-                    '토큰은 일일 댓글 추가, 즐겨찾기 영구추가 등에 사용할 수 있습니다.',
+                    '토큰 상점에서 발언권(댓글 추가), 발언연장권(50글자 추가), 즐겨찾기 영구 추가권을 구매할 수 있습니다.',
                     screenWidth,
                   ),
                   _buildHelpItem(
@@ -1630,12 +1644,12 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   ),
                   _buildHelpItem(
                     '즐겨찾기는 몇 개까지 가능한가요?',
-                    '최대 10개의 뉴스를 즐겨찾기할 수 있습니다.',
+                    '기본 10개까지 가능하며, 영구 추가권을 구매하면 한도가 영구적으로 증가합니다.',
                     screenWidth,
                   ),
                   _buildHelpItem(
                     '댓글 작성 제한이 있나요?',
-                    '하루에 최대 5개의 댓글을 작성할 수 있으며, 댓글은 50자 이내로 작성해야 합니다.',
+                    '하루 최대 5개(발언권으로 추가 가능), 기본 50자(발언연장권으로 100자까지 가능)입니다.',
                     screenWidth,
                   ),
                 ],
