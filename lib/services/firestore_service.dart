@@ -98,14 +98,20 @@ class FirestoreService {
   }) async {
     final uid = await _authService.getCurrentUid();
 
+    // 사용자 정보에서 영구 추가권 확인
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    final userData = userDoc.data();
+    final favoritePermanent = userData?['favoritePermanent'] ?? 0;
+    final maxFavorites = 10 + favoritePermanent;
+
     // 현재 즐겨찾기 개수 확인
     final currentFavorites = await _firestore
         .collection('favorites')
         .where('userId', isEqualTo: uid)
         .get();
 
-    if (currentFavorites.docs.length >= 10) {
-      throw Exception('즐겨찾기는 최대 10개까지 가능합니다');
+    if (currentFavorites.docs.length >= maxFavorites) {
+      throw Exception('즐겨찾기는 최대 $maxFavorites개까지 가능합니다');
     }
 
     final favoriteId = _generateFavoriteId(uid, newsUrl);
@@ -374,15 +380,27 @@ class FirestoreService {
     String? newsDescription,
     String? newsImageUrl,
     String? newsSource,
+    bool useCommentTicket = false,  // 댓글 추가권 사용 여부
+    bool useTextExtension = false,  // 글자 수 연장권 사용 여부
   }) async {
-    // 글자 수 제한 (50자)
-    if (content.trim().length > 50) {
-      throw Exception('댓글은 50자 이내로 작성해주세요 (현재: ${content.trim().length}자)');
+    final uid = await _authService.getCurrentUid();
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    final userData = userDoc.data();
+
+    // 글자 수 제한 체크
+    final textExtensions = userData?['textExtensions'] ?? 0;
+    final maxLength = 50 + (useTextExtension && textExtensions > 0 ? 50 : 0);
+
+    if (content.trim().length > maxLength) {
+      throw Exception('댓글은 $maxLength자 이내로 작성해주세요 (현재: ${content.trim().length}자)');
     }
 
-    // 일일 댓글 제한 확인 (5개)
+    // 일일 댓글 제한 확인
     final todayCount = await getTodayCommentCount();
-    if (todayCount >= 5) {
+    final commentTickets = userData?['commentTickets'] ?? 0;
+    final dailyLimit = 5 + (useCommentTicket && commentTickets > 0 ? 1 : 0);
+
+    if (todayCount >= dailyLimit && !(useCommentTicket && commentTickets > 0)) {
       throw Exception('하루 댓글 작성 제한(5개)에 도달했습니다');
     }
 
@@ -398,13 +416,28 @@ class FirestoreService {
       }
     }
 
-    final uid = await _authService.getCurrentUid();
     final userInfo = await _authService.getUserInfo();
     final newsStatsId = _generateNewsStatsId(newsUrl);
 
     String? newCommentId;
 
     await _firestore.runTransaction((transaction) async {
+      // 아이템 사용 처리
+      if (useCommentTicket || useTextExtension) {
+        final userRef = _firestore.collection('users').doc(uid);
+        final updates = <String, dynamic>{};
+
+        if (useCommentTicket && commentTickets > 0) {
+          updates['commentTickets'] = FieldValue.increment(-1);
+        }
+        if (useTextExtension && textExtensions > 0) {
+          updates['textExtensions'] = FieldValue.increment(-1);
+        }
+
+        if (updates.isNotEmpty) {
+          transaction.update(userRef, updates);
+        }
+      }
       // 1. 기존 뉴스 통계 확인
       final statsRef = _firestore.collection('newsStats').doc(newsStatsId);
       final statsDoc = await transaction.get(statsRef);

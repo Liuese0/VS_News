@@ -142,6 +142,193 @@ class AuthService {
     });
   }
 
+  // 캐시 충전 (테스트용)
+  Future<void> addCash(int amount) async {
+    final uid = await getCurrentUid();
+
+    // Firestore에 직접 업데이트 (실제로는 Cloud Function 사용해야 함)
+    await _firestore.collection('users').doc(uid).update({
+      'cashBalance': FieldValue.increment(amount),
+    });
+
+    // 캐시 히스토리 기록
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('cashHistory')
+        .add({
+      'type': 'purchase',
+      'amount': amount,
+      'description': '캐시 충전 $amount원',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // 캐시로 토큰 구매
+  Future<Map<String, dynamic>> purchaseTokensWithCash(String packageType) async {
+    final uid = await getCurrentUid();
+
+    // 패키지 정의
+    final packages = {
+      'small': {'tokens': 100, 'cost': 200},
+      'medium': {'tokens': 500, 'cost': 800},
+      'large': {'tokens': 1000, 'cost': 1500},
+    };
+
+    final pkg = packages[packageType];
+    if (pkg == null) {
+      throw Exception('Invalid package type');
+    }
+
+    // Firestore 트랜잭션으로 처리
+    return await _firestore.runTransaction((transaction) async {
+      final userRef = _firestore.collection('users').doc(uid);
+      final userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw Exception('User not found');
+      }
+
+      final currentCash = userDoc.data()?['cashBalance'] ?? 0;
+      final currentTokens = userDoc.data()?['tokenCount'] ?? 0;
+      final cost = pkg['cost'] as int;
+      final tokens = pkg['tokens'] as int;
+
+      if (currentCash < cost) {
+        throw Exception('캐시가 부족합니다');
+      }
+
+      final newCashBalance = currentCash - cost;
+      final newTokenBalance = currentTokens + tokens;
+
+      // 캐시 차감 및 토큰 지급
+      transaction.update(userRef, {
+        'cashBalance': newCashBalance,
+        'tokenCount': newTokenBalance,
+      });
+
+      return {
+        'cashBalance': newCashBalance,
+        'tokenCount': newTokenBalance,
+      };
+    }).then((result) async {
+      // 트랜잭션 외부에서 히스토리 기록
+      final userRef = _firestore.collection('users').doc(uid);
+      final tokens = pkg['tokens'] as int;
+      final cost = pkg['cost'] as int;
+
+      // 토큰 히스토리
+      await userRef.collection('tokenHistory').add({
+        'type': 'purchase_with_cash',
+        'amount': tokens,
+        'cashSpent': cost,
+        'description': '캐시로 $tokens 토큰 구매',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // 캐시 히스토리
+      await userRef.collection('cashHistory').add({
+        'type': 'token_purchase',
+        'amount': -cost,
+        'tokensReceived': tokens,
+        'description': '$tokens 토큰 구매',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return result;
+    });
+  }
+
+  // 상점 아이템 구매
+  Future<Map<String, dynamic>> purchaseShopItem(String itemType) async {
+    final uid = await getCurrentUid();
+
+    // 상점 아이템 정의
+    final items = {
+      'comment_ticket': {
+        'name': '발언권 (댓글추가권)',
+        'cost': 25,
+        'field': 'commentTickets',
+        'description': '하루 댓글 제한을 1회 추가합니다'
+      },
+      'text_extension': {
+        'name': '발언연장권 (50글자 추가권)',
+        'cost': 30,
+        'field': 'textExtensions',
+        'description': '댓글 글자 수 제한을 50자 추가합니다'
+      },
+      'favorite_permanent': {
+        'name': '즐겨찾기 영구 추가권',
+        'cost': 100,
+        'field': 'favoritePermanent',
+        'description': '즐겨찾기 최대 개수를 영구적으로 1개 추가합니다'
+      },
+    };
+
+    final item = items[itemType];
+    if (item == null) {
+      throw Exception('Invalid item type');
+    }
+
+    // Firestore 트랜잭션으로 처리
+    return await _firestore.runTransaction((transaction) async {
+      final userRef = _firestore.collection('users').doc(uid);
+      final userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw Exception('User not found');
+      }
+
+      final currentTokens = userDoc.data()?['tokenCount'] ?? 0;
+      final currentItemCount = userDoc.data()?[item['field']] ?? 0;
+      final cost = item['cost'] as int;
+
+      if (currentTokens < cost) {
+        throw Exception('토큰이 부족합니다');
+      }
+
+      final newTokenBalance = currentTokens - cost;
+      final newItemCount = currentItemCount + 1;
+
+      // 토큰 차감 및 아이템 지급
+      transaction.update(userRef, {
+        'tokenCount': newTokenBalance,
+        item['field'] as String: newItemCount,
+      });
+
+      return {
+        'tokenCount': newTokenBalance,
+        'itemCount': newItemCount,
+        'itemName': item['name'],
+      };
+    }).then((result) async {
+      // 트랜잭션 외부에서 히스토리 기록
+      final userRef = _firestore.collection('users').doc(uid);
+      final cost = item['cost'] as int;
+      final name = item['name'] as String;
+
+      // 토큰 히스토리
+      await userRef.collection('tokenHistory').add({
+        'type': 'shop_purchase',
+        'amount': -cost,
+        'itemPurchased': itemType,
+        'description': '$name 구매',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // 구매 히스토리
+      await userRef.collection('purchaseHistory').add({
+        'itemType': itemType,
+        'itemName': name,
+        'cost': cost,
+        'description': item['description'],
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return result;
+    });
+  }
+
   // 로그아웃
   Future<void> logout() async {
     await _secureStorage.delete(key: _uidKey);

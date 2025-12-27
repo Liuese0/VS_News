@@ -246,6 +246,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     final favorites = userInfo['favoriteCount'] ?? 0;
     final comments = userInfo['commentCount'] ?? 0;
     final tokens = userInfo['tokenCount'] ?? 0;
+    final cash = userInfo['cashBalance'] ?? 0;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
@@ -296,6 +297,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   label: '보유 토큰',
                   value: tokens.toString(),
                   color: const Color(0xFFFF9800),
+                  screenWidth: screenWidth,
+                ),
+                _buildStatItem(
+                  icon: Icons.account_balance_wallet,
+                  label: '보유 캐시',
+                  value: '${cash}원',
+                  color: const Color(0xFF4CAF50),
                   screenWidth: screenWidth,
                 ),
               ],
@@ -962,36 +970,30 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 // 캐시 충전 옵션
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-                  child: GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('캐시 충전 기능은 준비 중입니다'),
-                          backgroundColor: Color(0xFFFF9800),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: EdgeInsets.all(screenWidth * 0.05),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF4CAF50),
-                            Color(0xFF45A049),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(15),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF4CAF50).withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                  child: Column(
+                    children: [
+                      // 캐시 충전 버튼
+                      GestureDetector(
+                        onTap: () => _showCashPurchase(context),
+                        child: Container(
+                          padding: EdgeInsets.all(screenWidth * 0.04),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFF9C27B0),
+                                Color(0xFF7B1FA2),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF9C27B0).withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
+                          child: Row(
                             children: [
                               Container(
                                 padding: EdgeInsets.all(screenWidth * 0.03),
@@ -1000,9 +1002,9 @@ class _MyPageScreenState extends State<MyPageScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(
-                                  Icons.account_balance_wallet,
+                                  Icons.credit_card,
                                   color: Colors.white,
-                                  size: screenWidth * 0.08,
+                                  size: screenWidth * 0.06,
                                 ),
                               ),
                               SizedBox(width: screenWidth * 0.04),
@@ -1011,18 +1013,18 @@ class _MyPageScreenState extends State<MyPageScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '캐시로 토큰 구매',
+                                      '캐시 충전하기',
                                       style: TextStyle(
-                                        fontSize: screenWidth * 0.045,
+                                        fontSize: screenWidth * 0.04,
                                         fontWeight: FontWeight.bold,
                                         color: Colors.white,
                                       ),
                                     ),
-                                    SizedBox(height: screenWidth * 0.01),
+                                    SizedBox(height: screenWidth * 0.005),
                                     Text(
-                                      '다양한 패키지 제공',
+                                      '캐시로 토큰을 구매하세요',
                                       style: TextStyle(
-                                        fontSize: screenWidth * 0.032,
+                                        fontSize: screenWidth * 0.028,
                                         color: Colors.white70,
                                       ),
                                     ),
@@ -1032,39 +1034,112 @@ class _MyPageScreenState extends State<MyPageScreen> {
                               Icon(
                                 Icons.arrow_forward_ios,
                                 color: Colors.white,
-                                size: screenWidth * 0.05,
+                                size: screenWidth * 0.04,
                               ),
                             ],
                           ),
-                          SizedBox(height: screenWidth * 0.03),
-                          Container(
-                            padding: EdgeInsets.all(screenWidth * 0.025),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                _buildCashPackage('100토큰', '₩1,000', screenWidth),
-                                Container(
-                                  width: 1,
-                                  height: screenWidth * 0.08,
-                                  color: Colors.white.withOpacity(0.3),
-                                ),
-                                _buildCashPackage('500토큰', '₩4,500', screenWidth),
-                                Container(
-                                  width: 1,
-                                  height: screenWidth * 0.08,
-                                  color: Colors.white.withOpacity(0.3),
-                                ),
-                                _buildCashPackage('1000토큰', '₩8,000', screenWidth),
+                        ),
+                      ),
+                      SizedBox(height: screenWidth * 0.03),
+                      // 캐시로 토큰 구매
+                      GestureDetector(
+                        onTap: () => _showTokenPurchaseWithCash(context),
+                        child: Container(
+                          padding: EdgeInsets.all(screenWidth * 0.05),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFF4CAF50),
+                                Color(0xFF45A049),
                               ],
                             ),
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF4CAF50).withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                        ],
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(screenWidth * 0.03),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.3),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.account_balance_wallet,
+                                      color: Colors.white,
+                                      size: screenWidth * 0.08,
+                                    ),
+                                  ),
+                                  SizedBox(width: screenWidth * 0.04),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '캐시로 토큰 구매',
+                                          style: TextStyle(
+                                            fontSize: screenWidth * 0.045,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        SizedBox(height: screenWidth * 0.01),
+                                        Text(
+                                          '다양한 패키지 제공',
+                                          style: TextStyle(
+                                            fontSize: screenWidth * 0.032,
+                                            color: Colors.white70,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    color: Colors.white,
+                                    size: screenWidth * 0.05,
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: screenWidth * 0.03),
+                              Container(
+                                padding: EdgeInsets.all(screenWidth * 0.025),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                  children: [
+                                    _buildCashPackage('100토큰', '₩200', screenWidth),
+                                    Container(
+                                      width: 1,
+                                      height: screenWidth * 0.08,
+                                      color: Colors.white.withOpacity(0.3),
+                                    ),
+                                    _buildCashPackage('500토큰', '₩800', screenWidth),
+                                    Container(
+                                      width: 1,
+                                      height: screenWidth * 0.08,
+                                      color: Colors.white.withOpacity(0.3),
+                                    ),
+                                    _buildCashPackage('1000토큰', '₩1,500', screenWidth),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
 
@@ -1176,8 +1251,370 @@ class _MyPageScreenState extends State<MyPageScreen> {
     );
   }
 
+  // 캐시 충전 모달
+  void _showCashPurchase(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final authProvider = context.read<AuthProvider>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.all(screenWidth * 0.05),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.credit_card,
+                    color: const Color(0xFF9C27B0),
+                    size: screenWidth * 0.07,
+                  ),
+                  SizedBox(width: screenWidth * 0.03),
+                  Text(
+                    '캐시 충전',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.055,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF333333),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                children: [
+                  _buildCashPurchaseOption(
+                    context,
+                    amount: 1000,
+                    screenWidth: screenWidth,
+                    onTap: () async {
+                      try {
+                        await _authService.addCash(1000);
+                        await authProvider.loadUserInfo();
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('1,000원 캐시가 충전되었습니다'),
+                            backgroundColor: Color(0xFF4CAF50),
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('오류: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildCashPurchaseOption(
+                    context,
+                    amount: 5000,
+                    screenWidth: screenWidth,
+                    onTap: () async {
+                      try {
+                        await _authService.addCash(5000);
+                        await authProvider.loadUserInfo();
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('5,000원 캐시가 충전되었습니다'),
+                            backgroundColor: Color(0xFF4CAF50),
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('오류: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildCashPurchaseOption(
+                    context,
+                    amount: 10000,
+                    screenWidth: screenWidth,
+                    onTap: () async {
+                      try {
+                        await _authService.addCash(10000);
+                        await authProvider.loadUserInfo();
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('10,000원 캐시가 충전되었습니다'),
+                            backgroundColor: Color(0xFF4CAF50),
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('오류: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCashPurchaseOption(BuildContext context, {required int amount, required double screenWidth, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF9C27B0),
+              Color(0xFF7B1FA2),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF9C27B0).withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.account_balance_wallet,
+              color: Colors.white,
+              size: screenWidth * 0.08,
+            ),
+            SizedBox(width: screenWidth * 0.04),
+            Expanded(
+              child: Text(
+                '$amount원 충전',
+                style: TextStyle(
+                  fontSize: screenWidth * 0.045,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white,
+              size: screenWidth * 0.04,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 캐시로 토큰 구매 모달
+  void _showTokenPurchaseWithCash(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final authProvider = context.read<AuthProvider>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.all(screenWidth * 0.05),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.stars,
+                    color: const Color(0xFFFFD700),
+                    size: screenWidth * 0.07,
+                  ),
+                  SizedBox(width: screenWidth * 0.03),
+                  Text(
+                    '토큰 구매',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.055,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF333333),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                children: [
+                  _buildTokenPackageOption(
+                    context,
+                    tokens: 100,
+                    price: 200,
+                    packageType: 'small',
+                    screenWidth: screenWidth,
+                    authProvider: authProvider,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildTokenPackageOption(
+                    context,
+                    tokens: 500,
+                    price: 800,
+                    packageType: 'medium',
+                    screenWidth: screenWidth,
+                    authProvider: authProvider,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildTokenPackageOption(
+                    context,
+                    tokens: 1000,
+                    price: 1500,
+                    packageType: 'large',
+                    screenWidth: screenWidth,
+                    authProvider: authProvider,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTokenPackageOption(BuildContext context, {
+    required int tokens,
+    required int price,
+    required String packageType,
+    required double screenWidth,
+    required AuthProvider authProvider,
+  }) {
+    return GestureDetector(
+      onTap: () async {
+        try {
+          await _authService.purchaseTokensWithCash(packageType);
+          await authProvider.loadUserInfo();
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$tokens 토큰을 구매했습니다!'),
+              backgroundColor: const Color(0xFF4CAF50),
+            ),
+          );
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF4CAF50),
+              Color(0xFF45A049),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF4CAF50).withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.stars,
+              color: Colors.white,
+              size: screenWidth * 0.08,
+            ),
+            SizedBox(width: screenWidth * 0.04),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$tokens 토큰',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.045,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.005),
+                  Text(
+                    '$price 캐시',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.035,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white,
+              size: screenWidth * 0.04,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showTokenShop(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final authProvider = context.read<AuthProvider>();
 
     showModalBottomSheet(
       context: context,
@@ -1222,35 +1659,200 @@ class _MyPageScreenState extends State<MyPageScreen> {
               ),
             ),
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.construction,
-                      size: screenWidth * 0.15,
-                      color: Colors.grey.shade400,
-                    ),
-                    SizedBox(height: screenWidth * 0.04),
-                    Text(
-                      '준비 중입니다',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.045,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF333333),
-                      ),
-                    ),
-                    SizedBox(height: screenWidth * 0.02),
-                    Text(
-                      '곧 다양한 아이템을 만나보실 수 있습니다',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.035,
-                        color: const Color(0xFF666666),
-                      ),
-                    ),
-                  ],
+              child: ListView(
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                children: [
+                  _buildShopItem(
+                    context,
+                    icon: Icons.comment,
+                    title: '발언권 (댓글추가권)',
+                    description: '하루 댓글 제한을 1회 추가합니다',
+                    cost: 25,
+                    itemType: 'comment_ticket',
+                    screenWidth: screenWidth,
+                    authProvider: authProvider,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildShopItem(
+                    context,
+                    icon: Icons.text_fields,
+                    title: '발언연장권 (50글자 추가권)',
+                    description: '댓글 글자 수 제한을 50자 추가합니다',
+                    cost: 30,
+                    itemType: 'text_extension',
+                    screenWidth: screenWidth,
+                    authProvider: authProvider,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildShopItem(
+                    context,
+                    icon: Icons.bookmark_add,
+                    title: '즐겨찾기 영구 추가권',
+                    description: '즐겨찾기 최대 개수를 영구적으로 1개 추가합니다',
+                    cost: 100,
+                    itemType: 'favorite_permanent',
+                    screenWidth: screenWidth,
+                    authProvider: authProvider,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShopItem(BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String description,
+    required int cost,
+    required String itemType,
+    required double screenWidth,
+    required AuthProvider authProvider,
+  }) {
+    return GestureDetector(
+      onTap: () async {
+        // 구매 확인 다이얼로그
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(
+              title,
+              style: TextStyle(fontSize: screenWidth * 0.045),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  description,
+                  style: TextStyle(fontSize: screenWidth * 0.035),
+                ),
+                SizedBox(height: screenWidth * 0.03),
+                Text(
+                  '비용: $cost 토큰',
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.04,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFFF9800),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  '취소',
+                  style: TextStyle(fontSize: screenWidth * 0.037),
                 ),
               ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFD700),
+                ),
+                child: Text(
+                  '구매',
+                  style: TextStyle(fontSize: screenWidth * 0.037),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (confirm == true) {
+          try {
+            await _authService.purchaseShopItem(itemType);
+            await authProvider.loadUserInfo();
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$title 구매 완료!'),
+                backgroundColor: const Color(0xFF4CAF50),
+              ),
+            );
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      },
+      child: Container(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: const Color(0xFFFFD700), width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(screenWidth * 0.03),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFD700).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: const Color(0xFFFF9800),
+                size: screenWidth * 0.07,
+              ),
+            ),
+            SizedBox(width: screenWidth * 0.04),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.04,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF333333),
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.01),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.03,
+                      color: const Color(0xFF666666),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              children: [
+                Icon(
+                  Icons.stars,
+                  color: const Color(0xFFFF9800),
+                  size: screenWidth * 0.05,
+                ),
+                Text(
+                  '$cost',
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.04,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFFFF9800),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

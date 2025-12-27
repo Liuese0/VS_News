@@ -439,3 +439,283 @@ exports.updateNickname = functions.https.onCall(async (data, context) => {
     );
   }
 });
+
+/**
+ * 캐시로 토큰 구매
+ * 패키지: 100토큰/200원, 500토큰/800원, 1000토큰/1500원
+ */
+exports.purchaseTokensWithCash = functions.https.onCall(async (data, context) => {
+  const { uid, packageType } = data;
+
+  if (!uid || !packageType) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'UID and packageType are required'
+    );
+  }
+
+  // 패키지 정의
+  const packages = {
+    'small': { tokens: 100, cost: 200 },
+    'medium': { tokens: 500, cost: 800 },
+    'large': { tokens: 1000, cost: 1500 },
+  };
+
+  const pkg = packages[packageType];
+  if (!pkg) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Invalid package type'
+    );
+  }
+
+  const userRef = db.collection('users').doc(uid);
+
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'User not found');
+      }
+
+      const currentCash = userDoc.data().cashBalance || 0;
+      const currentTokens = userDoc.data().tokenCount || 0;
+
+      if (currentCash < pkg.cost) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Insufficient cash'
+        );
+      }
+
+      const newCashBalance = currentCash - pkg.cost;
+      const newTokenBalance = currentTokens + pkg.tokens;
+
+      // 캐시 차감 및 토큰 지급
+      transaction.update(userRef, {
+        cashBalance: newCashBalance,
+        tokenCount: newTokenBalance,
+      });
+
+      // 토큰 히스토리 기록
+      const historyRef = userRef.collection('tokenHistory').doc();
+      transaction.set(historyRef, {
+        type: 'purchase_with_cash',
+        amount: pkg.tokens,
+        balance: newTokenBalance,
+        cashSpent: pkg.cost,
+        description: `캐시로 ${pkg.tokens} 토큰 구매`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 캐시 히스토리 기록
+      const cashHistoryRef = userRef.collection('cashHistory').doc();
+      transaction.set(cashHistoryRef, {
+        type: 'token_purchase',
+        amount: -pkg.cost,
+        balance: newCashBalance,
+        tokensReceived: pkg.tokens,
+        description: `${pkg.tokens} 토큰 구매`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { newCashBalance, newTokenBalance };
+    });
+
+    return {
+      success: true,
+      cashBalance: result.newCashBalance,
+      tokenCount: result.newTokenBalance,
+    };
+
+  } catch (error) {
+    console.error('Purchase tokens with cash error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to purchase tokens'
+    );
+  }
+});
+
+/**
+ * 상점 아이템 구매
+ * - 발언권 (댓글추가권): 25토큰
+ * - 발언연장권 (50글자 추가권): 30토큰
+ * - 즐겨찾기 영구 추가권: 100토큰
+ */
+exports.purchaseShopItem = functions.https.onCall(async (data, context) => {
+  const { uid, itemType } = data;
+
+  if (!uid || !itemType) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'UID and itemType are required'
+    );
+  }
+
+  // 상점 아이템 정의
+  const items = {
+    'comment_ticket': {
+      name: '발언권 (댓글추가권)',
+      cost: 25,
+      field: 'commentTickets',
+      description: '하루 댓글 제한을 1회 추가합니다'
+    },
+    'text_extension': {
+      name: '발언연장권 (50글자 추가권)',
+      cost: 30,
+      field: 'textExtensions',
+      description: '댓글 글자 수 제한을 50자 추가합니다'
+    },
+    'favorite_permanent': {
+      name: '즐겨찾기 영구 추가권',
+      cost: 100,
+      field: 'favoritePermanent',
+      description: '즐겨찾기 최대 개수를 영구적으로 1개 추가합니다'
+    },
+  };
+
+  const item = items[itemType];
+  if (!item) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Invalid item type'
+    );
+  }
+
+  const userRef = db.collection('users').doc(uid);
+
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'User not found');
+      }
+
+      const currentTokens = userDoc.data().tokenCount || 0;
+      const currentItemCount = userDoc.data()[item.field] || 0;
+
+      if (currentTokens < item.cost) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Insufficient tokens'
+        );
+      }
+
+      const newTokenBalance = currentTokens - item.cost;
+      const newItemCount = currentItemCount + 1;
+
+      // 토큰 차감 및 아이템 지급
+      transaction.update(userRef, {
+        tokenCount: newTokenBalance,
+        [item.field]: newItemCount,
+      });
+
+      // 토큰 히스토리 기록
+      const historyRef = userRef.collection('tokenHistory').doc();
+      transaction.set(historyRef, {
+        type: 'shop_purchase',
+        amount: -item.cost,
+        balance: newTokenBalance,
+        itemPurchased: itemType,
+        description: `${item.name} 구매`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 구매 히스토리 기록
+      const purchaseHistoryRef = userRef.collection('purchaseHistory').doc();
+      transaction.set(purchaseHistoryRef, {
+        itemType: itemType,
+        itemName: item.name,
+        cost: item.cost,
+        description: item.description,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { newTokenBalance, newItemCount, itemName: item.name };
+    });
+
+    return {
+      success: true,
+      tokenCount: result.newTokenBalance,
+      itemCount: result.newItemCount,
+      itemName: result.itemName,
+    };
+
+  } catch (error) {
+    console.error('Purchase shop item error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to purchase item'
+    );
+  }
+});
+
+/**
+ * 캐시 충전 (실제 결제 연동은 나중에 구현)
+ * 현재는 테스트용으로 직접 캐시 지급
+ */
+exports.addCash = functions.https.onCall(async (data, context) => {
+  const { uid, amount } = data;
+
+  if (!uid || !amount || amount <= 0) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Valid UID and amount are required'
+    );
+  }
+
+  const userRef = db.collection('users').doc(uid);
+
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'User not found');
+      }
+
+      const currentCash = userDoc.data().cashBalance || 0;
+      const newCashBalance = currentCash + amount;
+
+      transaction.update(userRef, {
+        cashBalance: newCashBalance,
+      });
+
+      // 캐시 히스토리 기록
+      const cashHistoryRef = userRef.collection('cashHistory').doc();
+      transaction.set(cashHistoryRef, {
+        type: 'purchase',
+        amount: amount,
+        balance: newCashBalance,
+        description: `캐시 충전 ${amount}원`,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return { newCashBalance };
+    });
+
+    return {
+      success: true,
+      cashBalance: result.newCashBalance,
+    };
+
+  } catch (error) {
+    console.error('Add cash error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to add cash'
+    );
+  }
+});
