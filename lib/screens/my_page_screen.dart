@@ -1046,19 +1046,19 @@ class _MyPageScreenState extends State<MyPageScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                _buildCashPackage('100토큰', '₩1,000', screenWidth),
+                                _buildCashPackage('100토큰', '₩200', screenWidth),
                                 Container(
                                   width: 1,
                                   height: screenWidth * 0.08,
                                   color: Colors.white.withOpacity(0.3),
                                 ),
-                                _buildCashPackage('500토큰', '₩4,500', screenWidth),
+                                _buildCashPackage('500토큰', '₩800', screenWidth),
                                 Container(
                                   width: 1,
                                   height: screenWidth * 0.08,
                                   color: Colors.white.withOpacity(0.3),
                                 ),
-                                _buildCashPackage('1000토큰', '₩8,000', screenWidth),
+                                _buildCashPackage('1000토큰', '₩1,500', screenWidth),
                               ],
                             ),
                           ),
@@ -1178,6 +1178,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   void _showTokenShop(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final authProvider = context.read<AuthProvider>();
 
     showModalBottomSheet(
       context: context,
@@ -1222,34 +1223,226 @@ class _MyPageScreenState extends State<MyPageScreen> {
               ),
             ),
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.construction,
-                      size: screenWidth * 0.15,
-                      color: Colors.grey.shade400,
-                    ),
-                    SizedBox(height: screenWidth * 0.04),
-                    Text(
-                      '준비 중입니다',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.045,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF333333),
-                      ),
-                    ),
-                    SizedBox(height: screenWidth * 0.02),
-                    Text(
-                      '곧 다양한 아이템을 만나보실 수 있습니다',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.035,
-                        color: const Color(0xFF666666),
-                      ),
-                    ),
-                  ],
+              child: ListView(
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                children: [
+                  _buildShopItem(
+                    context: context,
+                    authProvider: authProvider,
+                    icon: Icons.chat_bubble_outline,
+                    title: '발언권',
+                    description: '댓글 추가권 (1회)',
+                    tokenCost: 25,
+                    color: const Color(0xFF4CAF50),
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildShopItem(
+                    context: context,
+                    authProvider: authProvider,
+                    icon: Icons.text_fields,
+                    title: '발언연장권',
+                    description: '50글자 추가권 (1회)',
+                    tokenCost: 30,
+                    color: const Color(0xFF2196F3),
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildShopItem(
+                    context: context,
+                    authProvider: authProvider,
+                    icon: Icons.bookmark_add,
+                    title: '즐겨찾기 영구 추가권',
+                    description: '즐겨찾기 슬롯 1개 추가',
+                    tokenCost: 100,
+                    color: const Color(0xFFFF9800),
+                    screenWidth: screenWidth,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShopItem({
+    required BuildContext context,
+    required AuthProvider authProvider,
+    required IconData icon,
+    required String title,
+    required String description,
+    required int tokenCost,
+    required Color color,
+    required double screenWidth,
+  }) {
+    final userInfo = authProvider.userInfo ?? {};
+    final currentTokens = userInfo['tokenCount'] ?? 0;
+    final canAfford = currentTokens >= tokenCost;
+
+    return GestureDetector(
+      onTap: () async {
+        if (canAfford) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text(
+                '$title 구매',
+                style: TextStyle(fontSize: screenWidth * 0.045),
+              ),
+              content: Text(
+                '$title을(를) $tokenCost 토큰에 구매하시겠습니까?',
+                style: TextStyle(fontSize: screenWidth * 0.037),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(
+                    '취소',
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                  ),
                 ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xD66B7280),
+                  ),
+                  child: Text(
+                    '구매',
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (confirmed == true) {
+            try {
+              // 토큰 차감
+              await _authService.decrementTokens(tokenCost);
+              await authProvider.loadUserInfo();
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text('$title을(를) 구매했습니다!'),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFF4CAF50),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                Navigator.pop(context);
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('구매 중 오류가 발생했습니다: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('토큰이 부족합니다'),
+              backgroundColor: Color(0xFFFF9800),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: canAfford ? color.withOpacity(0.3) : Colors.grey.shade300,
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(screenWidth * 0.03),
+              decoration: BoxDecoration(
+                color: canAfford ? color.withOpacity(0.1) : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: canAfford ? color : Colors.grey.shade400,
+                size: screenWidth * 0.08,
+              ),
+            ),
+            SizedBox(width: screenWidth * 0.04),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.043,
+                      fontWeight: FontWeight.bold,
+                      color: canAfford ? const Color(0xFF333333) : Colors.grey.shade600,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.01),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.033,
+                      color: canAfford ? const Color(0xFF666666) : Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: screenWidth * 0.03,
+                vertical: screenWidth * 0.015,
+              ),
+              decoration: BoxDecoration(
+                color: canAfford ? color : Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.stars,
+                    color: Colors.white,
+                    size: screenWidth * 0.04,
+                  ),
+                  SizedBox(width: screenWidth * 0.01),
+                  Text(
+                    '$tokenCost',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.037,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

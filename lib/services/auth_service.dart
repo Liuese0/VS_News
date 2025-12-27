@@ -142,6 +142,14 @@ class AuthService {
     });
   }
 
+  // 토큰 감소
+  Future<void> decrementTokens(int amount) async {
+    final uid = await getCurrentUid();
+    await _firestore.collection('users').doc(uid).update({
+      'tokenCount': FieldValue.increment(-amount),
+    });
+  }
+
   // 로그아웃
   Future<void> logout() async {
     await _secureStorage.delete(key: _uidKey);
