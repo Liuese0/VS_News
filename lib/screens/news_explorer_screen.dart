@@ -1219,6 +1219,10 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   String? _replyingToCommentId;
   String? _replyingToNickname;
 
+  // 아이템 사용 플래그
+  bool _useSpeakingRight = false;
+  bool _useSpeakingExtension = false;
+
   // 댓글 필터 상태: 'all', 'pro', 'con'
   String _selectedStanceFilter = 'all';
 
@@ -2351,7 +2355,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             valueListenable: controller,
             builder: (context, value, child) {
               final length = value.text.length;
-              final isOverLimit = length > 50;
+              final isOver50 = length > 50;
+              final isOver100 = length > 100;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2359,7 +2364,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   TextField(
                     controller: controller,
                     maxLines: 3,
-                    maxLength: 50,
+                    maxLength: 100,
                     style: TextStyle(fontSize: screenWidth * 0.037),
                     decoration: InputDecoration(
                       hintText: isReplying
@@ -2374,7 +2379,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: isOverLimit
+                          color: isOver100
                               ? Colors.red
                               : Colors.grey.shade300,
                         ),
@@ -2382,7 +2387,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: isOverLimit
+                          color: isOver100
                               ? Colors.red
                               : Colors.grey.shade300,
                         ),
@@ -2390,7 +2395,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: isOverLimit
+                          color: isOver100
                               ? Colors.red
                               : const Color(0xD66B7280),
                           width: 2,
@@ -2404,18 +2409,20 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                   Row(
                     children: [
                       Text(
-                        '$length/50',
+                        '$length/50${isOver50 ? ' (+${length - 50})' : ''}',
                         style: TextStyle(
                           fontSize: screenWidth * 0.03,
-                          color: isOverLimit
+                          color: isOver100
                               ? Colors.red
-                              : length > 40
+                              : isOver50
                               ? Colors.orange
+                              : length > 40
+                              ? Colors.orange.shade300
                               : Colors.grey,
-                          fontWeight: isOverLimit ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isOver50 ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
-                      if (isOverLimit) ...[
+                      if (isOver100) ...[
                         SizedBox(width: screenWidth * 0.02),
                         Icon(
                           Icons.error_outline,
@@ -2424,7 +2431,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                         ),
                         SizedBox(width: screenWidth * 0.01),
                         Text(
-                          '글자 수 초과',
+                          '최대 100자',
                           style: TextStyle(
                             fontSize: screenWidth * 0.028,
                             color: Colors.red,
@@ -2432,6 +2439,75 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                         ),
                       ],
                     ],
+                  ),
+                ],
+              );
+            },
+          ),
+          // 아이템 사용 옵션
+          Consumer<AuthProvider>(
+            builder: (context, authProvider, _) {
+              final userInfo = authProvider.userInfo ?? {};
+              final speakingExtensionCount = userInfo['speakingExtensionCount'] ?? 0;
+              final textLength = controller.text.length;
+              final needsExtension = textLength > 50 && textLength <= 100;
+
+              if (!needsExtension) return const SizedBox.shrink();
+
+              return Column(
+                children: [
+                  SizedBox(height: screenWidth * 0.02),
+                  Container(
+                    padding: EdgeInsets.all(screenWidth * 0.03),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2196F3).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF2196F3).withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: _useSpeakingExtension,
+                          onChanged: speakingExtensionCount > 0
+                              ? (value) {
+                                  setState(() {
+                                    _useSpeakingExtension = value ?? false;
+                                  });
+                                }
+                              : null,
+                          activeColor: const Color(0xFF2196F3),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '발언연장권 사용 (50글자 추가)',
+                                style: TextStyle(
+                                  fontSize: screenWidth * 0.035,
+                                  fontWeight: FontWeight.bold,
+                                  color: speakingExtensionCount > 0
+                                      ? const Color(0xFF2196F3)
+                                      : Colors.grey,
+                                ),
+                              ),
+                              Text(
+                                '보유: $speakingExtensionCount개',
+                                style: TextStyle(
+                                  fontSize: screenWidth * 0.03,
+                                  color: speakingExtensionCount > 0
+                                      ? const Color(0xFF666666)
+                                      : Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               );
@@ -2923,11 +2999,23 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
       return;
     }
 
-    if (_commentController.text.trim().length > 50) {
+    final contentLength = _commentController.text.trim().length;
+    if (contentLength > 100) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('댓글은 50자 이내로 작성해주세요'),
+          content: Text('댓글은 최대 100자까지 작성 가능합니다'),
           backgroundColor: AppColors.errorColor,
+        ),
+      );
+      return;
+    }
+
+    // 50자 초과 시 발언연장권 확인
+    if (contentLength > 50 && !_useSpeakingExtension) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('50자를 초과하려면 발언연장권을 사용해주세요'),
+          backgroundColor: AppColors.warningColor,
         ),
       );
       return;
@@ -2937,6 +3025,53 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
     try {
       final firestoreService = FirestoreService();
+      final authProvider = context.read<AuthProvider>();
+      final userInfo = authProvider.userInfo ?? {};
+      final speakingRightCount = userInfo['speakingRightCount'] ?? 0;
+
+      // 일일 제한 확인
+      final todayCount = await firestoreService.getTodayCommentCount();
+      if (todayCount >= 5 && !_useSpeakingRight) {
+        // 발언권이 있으면 사용 여부 물어보기
+        if (speakingRightCount > 0) {
+          final useRight = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('일일 댓글 제한'),
+              content: Text('하루 댓글 작성 제한(5개)에 도달했습니다.\n발언권을 사용하시겠습니까? (보유: $speakingRightCount개)'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('취소'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xD66B7280),
+                  ),
+                  child: const Text('사용'),
+                ),
+              ],
+            ),
+          );
+
+          if (useRight != true) {
+            setState(() => _isSubmittingComment = false);
+            return;
+          }
+
+          setState(() => _useSpeakingRight = true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('하루 댓글 작성 제한(5개)에 도달했습니다'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+          setState(() => _isSubmittingComment = false);
+          return;
+        }
+      }
 
       await firestoreService.addComment(
         newsUrl: widget.news.url,
@@ -2946,10 +3081,17 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         newsDescription: widget.news.description,
         newsImageUrl: widget.news.imageUrl,
         newsSource: widget.news.source,
+        useSpeakingRight: _useSpeakingRight,
+        useSpeakingExtension: _useSpeakingExtension,
       );
 
-      setState(() => _commentController.clear());
+      setState(() {
+        _commentController.clear();
+        _useSpeakingRight = false;
+        _useSpeakingExtension = false;
+      });
       await _loadComments();
+      await authProvider.loadUserInfo();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2982,11 +3124,23 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
       return;
     }
 
-    if (_replyController.text.trim().length > 50) {
+    final contentLength = _replyController.text.trim().length;
+    if (contentLength > 100) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('답글은 50자 이내로 작성해주세요'),
+          content: Text('답글은 최대 100자까지 작성 가능합니다'),
           backgroundColor: AppColors.errorColor,
+        ),
+      );
+      return;
+    }
+
+    // 50자 초과 시 발언연장권 확인
+    if (contentLength > 50 && !_useSpeakingExtension) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('50자를 초과하려면 발언연장권을 사용해주세요'),
+          backgroundColor: AppColors.warningColor,
         ),
       );
       return;
@@ -2996,6 +3150,53 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
 
     try {
       final firestoreService = FirestoreService();
+      final authProvider = context.read<AuthProvider>();
+      final userInfo = authProvider.userInfo ?? {};
+      final speakingRightCount = userInfo['speakingRightCount'] ?? 0;
+
+      // 일일 제한 확인
+      final todayCount = await firestoreService.getTodayCommentCount();
+      if (todayCount >= 5 && !_useSpeakingRight) {
+        // 발언권이 있으면 사용 여부 물어보기
+        if (speakingRightCount > 0) {
+          final useRight = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('일일 댓글 제한'),
+              content: Text('하루 댓글 작성 제한(5개)에 도달했습니다.\n발언권을 사용하시겠습니까? (보유: $speakingRightCount개)'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('취소'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xD66B7280),
+                  ),
+                  child: const Text('사용'),
+                ),
+              ],
+            ),
+          );
+
+          if (useRight != true) {
+            setState(() => _isSubmittingComment = false);
+            return;
+          }
+
+          setState(() => _useSpeakingRight = true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('하루 댓글 작성 제한(5개)에 도달했습니다'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+          setState(() => _isSubmittingComment = false);
+          return;
+        }
+      }
 
       await firestoreService.addComment(
         newsUrl: widget.news.url,
@@ -3006,15 +3207,20 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
         newsDescription: widget.news.description,
         newsImageUrl: widget.news.imageUrl,
         newsSource: widget.news.source,
+        useSpeakingRight: _useSpeakingRight,
+        useSpeakingExtension: _useSpeakingExtension,
       );
 
       setState(() {
         _replyController.clear();
         _replyingToCommentId = null;
         _replyingToNickname = null;
+        _useSpeakingRight = false;
+        _useSpeakingExtension = false;
       });
 
       await _loadComments();
+      await authProvider.loadUserInfo();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

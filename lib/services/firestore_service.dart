@@ -393,34 +393,10 @@ class FirestoreService {
     bool useSpeakingRight = false, // 발언권 사용 여부
     bool useSpeakingExtension = false, // 발언연장권 사용 여부
   }) async {
-    final userInfo = await _authService.getUserInfo();
-    final speakingRightCount = userInfo?['speakingRightCount'] ?? 0;
-    final speakingExtensionCount = userInfo?['speakingExtensionCount'] ?? 0;
-
     // 글자 수 제한
     final contentLength = content.trim().length;
     if (contentLength > 100) {
-      throw Exception('댓글은 최대 100자까지 작성 가능합니다 (현재: ${contentLength}자)');
-    } else if (contentLength > 50) {
-      // 50자 초과 시 발언연장권 필요
-      if (!useSpeakingExtension) {
-        throw Exception('50자를 초과하려면 발언연장권이 필요합니다 (현재: ${contentLength}자)');
-      }
-      if (speakingExtensionCount <= 0) {
-        throw Exception('발언연장권이 부족합니다');
-      }
-    }
-
-    // 일일 댓글 제한 확인 (5개)
-    final todayCount = await getTodayCommentCount();
-    if (todayCount >= 5) {
-      // 발언권 사용 가능 여부 확인
-      if (!useSpeakingRight) {
-        throw Exception('하루 댓글 작성 제한(5개)에 도달했습니다. 발언권을 사용하시겠습니까?');
-      }
-      if (speakingRightCount <= 0) {
-        throw Exception('발언권이 부족합니다');
-      }
+      throw Exception('댓글은 최대 100자까지 작성 가능합니다');
     }
 
     // 대댓글 깊이 제한 (1단계만 허용)
@@ -530,10 +506,10 @@ class FirestoreService {
     await _incrementDailyCommentCount();
 
     // 8. 아이템 사용 처리
-    if (useSpeakingRight && todayCount >= 5) {
+    if (useSpeakingRight) {
       await _authService.useSpeakingRight();
     }
-    if (useSpeakingExtension && contentLength > 50) {
+    if (useSpeakingExtension) {
       await _authService.useSpeakingExtension();
     }
 
