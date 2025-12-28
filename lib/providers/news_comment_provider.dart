@@ -12,6 +12,9 @@ class NewsCommentProvider extends ChangeNotifier {
   final Map<String, int> _participantCounts = {};
   List<String> _participatedNewsUrls = [];
 
+  // 댓글 반응 상태 캐시 (commentId -> 'like' | 'dislike' | null)
+  final Map<String, String?> _commentReactions = {};
+
   // 특정 뉴스의 댓글 가져오기
   List<NewsComment> getComments(String newsUrl) {
     return _commentsByNewsUrl[newsUrl] ?? [];
@@ -60,6 +63,8 @@ class NewsCommentProvider extends ChangeNotifier {
             parentId: replyData['parentId'],
             depth: replyData['depth'] ?? 1,
             replyCount: 0,
+            likeCount: replyData['likeCount'] ?? 0,
+            dislikeCount: replyData['dislikeCount'] ?? 0,
           );
         }).toList();
 
@@ -76,16 +81,44 @@ class NewsCommentProvider extends ChangeNotifier {
           depth: data['depth'] ?? 0,
           replyCount: data['replyCount'] ?? 0,
           replies: replies,
+          likeCount: data['likeCount'] ?? 0,
+          dislikeCount: data['dislikeCount'] ?? 0,
         );
       }).toList();
 
       final participantCount = await _firestoreService.getParticipantCount(newsUrl);
       _participantCounts[newsUrl] = participantCount;
 
+      // 댓글 반응 상태 로드
+      await _loadCommentReactions(newsUrl);
+
       notifyListeners();
     } catch (e) {
       print('댓글 로드 실패: $e');
     }
+  }
+
+  // 댓글 반응 상태 로드
+  Future<void> _loadCommentReactions(String newsUrl) async {
+    final comments = _commentsByNewsUrl[newsUrl] ?? [];
+    final allCommentIds = <String>[];
+
+    for (var comment in comments) {
+      allCommentIds.add(comment.id);
+      for (var reply in comment.replies) {
+        allCommentIds.add(reply.id);
+      }
+    }
+
+    if (allCommentIds.isNotEmpty) {
+      final reactions = await _firestoreService.getCommentReactionsBatch(allCommentIds);
+      _commentReactions.addAll(reactions);
+    }
+  }
+
+  // 특정 댓글의 반응 상태 가져오기
+  String? getCommentReaction(String commentId) {
+    return _commentReactions[commentId];
   }
 
   // 댓글 추가 (Firestore에 저장)
@@ -156,6 +189,146 @@ class NewsCommentProvider extends ChangeNotifier {
     _commentsByNewsUrl.clear();
     _participatedNewsUrls.clear();
     _participantCounts.clear();
+    _commentReactions.clear();
     notifyListeners();
+  }
+
+  // 댓글 좋아요 토글
+  Future<void> toggleCommentLike(String newsUrl, String commentId) async {
+    try {
+      final currentReaction = _commentReactions[commentId];
+
+      // 1. 로컬 상태 즉시 업데이트 (낙관적 업데이트)
+      if (currentReaction == null) {
+        _commentReactions[commentId] = 'like';
+        _updateCommentCount(newsUrl, commentId, likeIncrement: 1);
+      } else if (currentReaction == 'like') {
+        _commentReactions.remove(commentId);
+        _updateCommentCount(newsUrl, commentId, likeIncrement: -1);
+      } else if (currentReaction == 'dislike') {
+        _commentReactions[commentId] = 'like';
+        _updateCommentCount(newsUrl, commentId, likeIncrement: 1, dislikeIncrement: -1);
+      }
+
+      // 즉시 UI 업데이트
+      notifyListeners();
+
+      // 2. 서버 업데이트 (백그라운드)
+      await _firestoreService.toggleCommentLike(commentId);
+
+      // 3. 서버와 동기화 (백그라운드에서 실제 데이터 확인)
+      await loadComments(newsUrl);
+    } catch (e) {
+      print('댓글 좋아요 토글 실패: $e');
+      // 실패 시 원래 상태로 복원
+      await loadComments(newsUrl);
+      rethrow;
+    }
+  }
+
+  // 댓글 싫어요 토글
+  Future<void> toggleCommentDislike(String newsUrl, String commentId) async {
+    try {
+      final currentReaction = _commentReactions[commentId];
+
+      // 1. 로컬 상태 즉시 업데이트 (낙관적 업데이트)
+      if (currentReaction == null) {
+        _commentReactions[commentId] = 'dislike';
+        _updateCommentCount(newsUrl, commentId, dislikeIncrement: 1);
+      } else if (currentReaction == 'dislike') {
+        _commentReactions.remove(commentId);
+        _updateCommentCount(newsUrl, commentId, dislikeIncrement: -1);
+      } else if (currentReaction == 'like') {
+        _commentReactions[commentId] = 'dislike';
+        _updateCommentCount(newsUrl, commentId, likeIncrement: -1, dislikeIncrement: 1);
+      }
+
+      // 즉시 UI 업데이트
+      notifyListeners();
+
+      // 2. 서버 업데이트 (백그라운드)
+      await _firestoreService.toggleCommentDislike(commentId);
+
+      // 3. 서버와 동기화 (백그라운드에서 실제 데이터 확인)
+      await loadComments(newsUrl);
+    } catch (e) {
+      print('댓글 싫어요 토글 실패: $e');
+      // 실패 시 원래 상태로 복원
+      await loadComments(newsUrl);
+      rethrow;
+    }
+  }
+
+  // 로컬 캐시에서 댓글 카운트 업데이트
+  void _updateCommentCount(
+      String newsUrl,
+      String commentId, {
+        int likeIncrement = 0,
+        int dislikeIncrement = 0,
+      }) {
+    final comments = _commentsByNewsUrl[newsUrl];
+    if (comments == null) return;
+
+    for (int i = 0; i < comments.length; i++) {
+      final comment = comments[i];
+
+      // 일반 댓글 확인
+      if (comment.id == commentId) {
+        _commentsByNewsUrl[newsUrl]![i] = NewsComment(
+          id: comment.id,
+          newsUrl: comment.newsUrl,
+          nickname: comment.nickname,
+          stance: comment.stance,
+          content: comment.content,
+          createdAt: comment.createdAt,
+          parentId: comment.parentId,
+          depth: comment.depth,
+          replyCount: comment.replyCount,
+          replies: comment.replies,
+          likeCount: (comment.likeCount + likeIncrement).clamp(0, 999999),
+          dislikeCount: (comment.dislikeCount + dislikeIncrement).clamp(0, 999999),
+        );
+        return;
+      }
+
+      // 대댓글 확인
+      for (int j = 0; j < comment.replies.length; j++) {
+        final reply = comment.replies[j];
+        if (reply.id == commentId) {
+          final updatedReply = NewsComment(
+            id: reply.id,
+            newsUrl: reply.newsUrl,
+            nickname: reply.nickname,
+            stance: reply.stance,
+            content: reply.content,
+            createdAt: reply.createdAt,
+            parentId: reply.parentId,
+            depth: reply.depth,
+            replyCount: reply.replyCount,
+            likeCount: (reply.likeCount + likeIncrement).clamp(0, 999999),
+            dislikeCount: (reply.dislikeCount + dislikeIncrement).clamp(0, 999999),
+          );
+
+          final updatedReplies = List<NewsComment>.from(comment.replies);
+          updatedReplies[j] = updatedReply;
+
+          _commentsByNewsUrl[newsUrl]![i] = NewsComment(
+            id: comment.id,
+            newsUrl: comment.newsUrl,
+            nickname: comment.nickname,
+            stance: comment.stance,
+            content: comment.content,
+            createdAt: comment.createdAt,
+            parentId: comment.parentId,
+            depth: comment.depth,
+            replyCount: comment.replyCount,
+            replies: updatedReplies,
+            likeCount: comment.likeCount,
+            dislikeCount: comment.dislikeCount,
+          );
+          return;
+        }
+      }
+    }
   }
 }

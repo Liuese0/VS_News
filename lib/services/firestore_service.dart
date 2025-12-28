@@ -428,6 +428,8 @@ class FirestoreService {
         'parentId': parentId,
         'depth': parentId != null ? 1 : 0,
         'replyCount': 0,
+        'likeCount': 0,
+        'dislikeCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -846,6 +848,142 @@ class FirestoreService {
     }
 
     return result;
+  }
+
+  // ========== 댓글 좋아요/싫어요 ==========
+
+  /// 사용자의 댓글 반응 상태 가져오기 ('like', 'dislike', null)
+  Future<String?> getCommentReaction(String commentId) async {
+    final uid = await _authService.getCurrentUid();
+    final doc = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('commentReactions')
+        .doc(commentId)
+        .get();
+
+    if (doc.exists) {
+      return doc.data()?['type'] as String?;
+    }
+    return null;
+  }
+
+  /// 댓글 좋아요 토글 (좋아요 <-> 없음, 싫어요 -> 좋아요)
+  Future<void> toggleCommentLike(String commentId) async {
+    final uid = await _authService.getCurrentUid();
+    final reactionRef = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('commentReactions')
+        .doc(commentId);
+
+    final commentRef = _firestore.collection('comments').doc(commentId);
+
+    await _firestore.runTransaction((transaction) async {
+      final reactionDoc = await transaction.get(reactionRef);
+      final currentReaction = reactionDoc.exists
+          ? (reactionDoc.data()!['type'] as String?)
+          : null;
+
+      if (currentReaction == null) {
+        // 반응 없음 -> 좋아요
+        transaction.set(reactionRef, {
+          'type': 'like',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        transaction.update(commentRef, {
+          'likeCount': FieldValue.increment(1),
+        });
+      } else if (currentReaction == 'like') {
+        // 좋아요 -> 반응 없음
+        transaction.delete(reactionRef);
+        transaction.update(commentRef, {
+          'likeCount': FieldValue.increment(-1),
+        });
+      } else if (currentReaction == 'dislike') {
+        // 싫어요 -> 좋아요
+        transaction.update(reactionRef, {
+          'type': 'like',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        transaction.update(commentRef, {
+          'dislikeCount': FieldValue.increment(-1),
+          'likeCount': FieldValue.increment(1),
+        });
+      }
+    });
+  }
+
+  /// 댓글 싫어요 토글 (싫어요 <-> 없음, 좋아요 -> 싫어요)
+  Future<void> toggleCommentDislike(String commentId) async {
+    final uid = await _authService.getCurrentUid();
+    final reactionRef = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('commentReactions')
+        .doc(commentId);
+
+    final commentRef = _firestore.collection('comments').doc(commentId);
+
+    await _firestore.runTransaction((transaction) async {
+      final reactionDoc = await transaction.get(reactionRef);
+      final currentReaction = reactionDoc.exists
+          ? (reactionDoc.data()!['type'] as String?)
+          : null;
+
+      if (currentReaction == null) {
+        // 반응 없음 -> 싫어요
+        transaction.set(reactionRef, {
+          'type': 'dislike',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        transaction.update(commentRef, {
+          'dislikeCount': FieldValue.increment(1),
+        });
+      } else if (currentReaction == 'dislike') {
+        // 싫어요 -> 반응 없음
+        transaction.delete(reactionRef);
+        transaction.update(commentRef, {
+          'dislikeCount': FieldValue.increment(-1),
+        });
+      } else if (currentReaction == 'like') {
+        // 좋아요 -> 싫어요
+        transaction.update(reactionRef, {
+          'type': 'dislike',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        transaction.update(commentRef, {
+          'likeCount': FieldValue.increment(-1),
+          'dislikeCount': FieldValue.increment(1),
+        });
+      }
+    });
+  }
+
+  /// 여러 댓글의 반응 상태 일괄 조회
+  Future<Map<String, String>> getCommentReactionsBatch(List<String> commentIds) async {
+    if (commentIds.isEmpty) return {};
+
+    final uid = await _authService.getCurrentUid();
+    final Map<String, String> reactions = {};
+
+    // Firestore는 in 쿼리에 최대 30개까지만 지원
+    final chunks = _chunkList(commentIds, 30);
+
+    for (final chunk in chunks) {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('commentReactions')
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        reactions[doc.id] = doc.data()['type'] as String;
+      }
+    }
+
+    return reactions;
   }
 }
 

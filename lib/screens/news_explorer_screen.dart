@@ -1275,6 +1275,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               parentId: replyData['parentId'],
               depth: replyData['depth'] ?? 1,
               replyCount: 0,
+              likeCount: replyData['likeCount'] ?? 0,
+              dislikeCount: replyData['dislikeCount'] ?? 0,
             );
           }).toList();
 
@@ -1291,6 +1293,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             depth: data['depth'] ?? 0,
             replyCount: data['replyCount'] ?? 0,
             replies: replies,
+            likeCount: data['likeCount'] ?? 0,
+            dislikeCount: data['dislikeCount'] ?? 0,
           );
         }).toList();
       });
@@ -2718,6 +2722,80 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                           ],
                         ),
                       ),
+                    Consumer<NewsCommentProvider>(
+                      builder: (context, provider, child) {
+                        final reaction = provider.getCommentReaction(comment.id);
+                        final isLiked = reaction == 'like';
+                        return TextButton.icon(
+                          onPressed: () async {
+                            try {
+                              await provider.toggleCommentLike(
+                                widget.news.url,
+                                comment.id,
+                              );
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('좋아요 실패: $e')),
+                                );
+                              }
+                            }
+                          },
+                          icon: Icon(
+                            isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                            size: screenWidth * 0.035,
+                          ),
+                          label: Text(
+                            '${comment.likeCount}',
+                            style: TextStyle(fontSize: screenWidth * 0.03),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: isLiked ? Colors.blue : const Color(0xFF666666),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: screenWidth * 0.015,
+                              vertical: screenWidth * 0.01,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    Consumer<NewsCommentProvider>(
+                      builder: (context, provider, child) {
+                        final reaction = provider.getCommentReaction(comment.id);
+                        final isDisliked = reaction == 'dislike';
+                        return TextButton.icon(
+                          onPressed: () async {
+                            try {
+                              await provider.toggleCommentDislike(
+                                widget.news.url,
+                                comment.id,
+                              );
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('싫어요 실패: $e')),
+                                );
+                              }
+                            }
+                          },
+                          icon: Icon(
+                            isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                            size: screenWidth * 0.035,
+                          ),
+                          label: Text(
+                            '${comment.dislikeCount}',
+                            style: TextStyle(fontSize: screenWidth * 0.03),
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: isDisliked ? Colors.red : const Color(0xFF666666),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: screenWidth * 0.015,
+                              vertical: screenWidth * 0.01,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                     TextButton.icon(
                       onPressed: _userVote == null
                           ? null
@@ -2837,6 +2915,85 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                             height: 1.5,
                             color: const Color(0xFF444444),
                           ),
+                        ),
+                        SizedBox(height: screenWidth * 0.02),
+                        Row(
+                          children: [
+                            Consumer<NewsCommentProvider>(
+                              builder: (context, provider, child) {
+                                final reaction = provider.getCommentReaction(reply.id);
+                                final isLiked = reaction == 'like';
+                                return TextButton.icon(
+                                  onPressed: () async {
+                                    try {
+                                      await provider.toggleCommentLike(
+                                        widget.news.url,
+                                        reply.id,
+                                      );
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('좋아요 실패: $e')),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  icon: Icon(
+                                    isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                                    size: screenWidth * 0.032,
+                                  ),
+                                  label: Text(
+                                    '${reply.likeCount}',
+                                    style: TextStyle(fontSize: screenWidth * 0.028),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: isLiked ? Colors.blue : const Color(0xFF666666),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: screenWidth * 0.01,
+                                      vertical: screenWidth * 0.005,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            Consumer<NewsCommentProvider>(
+                              builder: (context, provider, child) {
+                                final reaction = provider.getCommentReaction(reply.id);
+                                final isDisliked = reaction == 'dislike';
+                                return TextButton.icon(
+                                  onPressed: () async {
+                                    try {
+                                      await provider.toggleCommentDislike(
+                                        widget.news.url,
+                                        reply.id,
+                                      );
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('싫어요 실패: $e')),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  icon: Icon(
+                                    isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                                    size: screenWidth * 0.032,
+                                  ),
+                                  label: Text(
+                                    '${reply.dislikeCount}',
+                                    style: TextStyle(fontSize: screenWidth * 0.028),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: isDisliked ? Colors.red : const Color(0xFF666666),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: screenWidth * 0.01,
+                                      vertical: screenWidth * 0.005,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -3281,6 +3438,8 @@ class NewsComment {
   final int depth;
   final int replyCount;
   final List<NewsComment> replies;
+  final int likeCount;
+  final int dislikeCount;
 
   NewsComment({
     required this.id,
@@ -3293,6 +3452,8 @@ class NewsComment {
     this.depth = 0,
     this.replyCount = 0,
     this.replies = const [],
+    this.likeCount = 0,
+    this.dislikeCount = 0,
   });
 
   bool get isPro => stance == 'pro';
