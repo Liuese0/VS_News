@@ -2192,13 +2192,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             },
           ),
           if (_showCommentInput) ...[
-            if (_replyingToCommentId != null)
-              _buildCommentInput(
-                parentId: _replyingToCommentId,
-                parentNickname: _replyingToNickname,
-              )
-            else
-              _buildCommentInput(),
+            _buildCommentInput(),
             SizedBox(height: screenWidth * 0.06),
           ],
           if (_filteredComments.isEmpty)
@@ -2828,6 +2822,18 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               ],
             ),
           ),
+          if (_replyingToCommentId == comment.id)
+            Padding(
+              padding: EdgeInsets.only(
+                left: screenWidth * 0.08,
+                top: screenWidth * 0.02,
+                right: 0,
+              ),
+              child: _buildCommentInput(
+                parentId: comment.id,
+                parentNickname: comment.nickname,
+              ),
+            ),
           if (comment.replies.isNotEmpty)
             Padding(
               padding: EdgeInsets.only(
