@@ -2726,6 +2726,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       builder: (context, provider, child) {
                         final reaction = provider.getCommentReaction(comment.id);
                         final isLiked = reaction == 'like';
+                        final counts = provider.getCommentCounts(widget.news.url, comment.id);
                         return TextButton.icon(
                           onPressed: () async {
                             try {
@@ -2746,7 +2747,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                             size: screenWidth * 0.035,
                           ),
                           label: Text(
-                            '${comment.likeCount}',
+                            '${counts['likeCount']}',
                             style: TextStyle(fontSize: screenWidth * 0.03),
                           ),
                           style: TextButton.styleFrom(
@@ -2763,6 +2764,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                       builder: (context, provider, child) {
                         final reaction = provider.getCommentReaction(comment.id);
                         final isDisliked = reaction == 'dislike';
+                        final counts = provider.getCommentCounts(widget.news.url, comment.id);
                         return TextButton.icon(
                           onPressed: () async {
                             try {
@@ -2783,7 +2785,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                             size: screenWidth * 0.035,
                           ),
                           label: Text(
-                            '${comment.dislikeCount}',
+                            '${counts['dislikeCount']}',
                             style: TextStyle(fontSize: screenWidth * 0.03),
                           ),
                           style: TextButton.styleFrom(
@@ -2923,6 +2925,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                               builder: (context, provider, child) {
                                 final reaction = provider.getCommentReaction(reply.id);
                                 final isLiked = reaction == 'like';
+                                final counts = provider.getCommentCounts(widget.news.url, reply.id);
                                 return TextButton.icon(
                                   onPressed: () async {
                                     try {
@@ -2943,7 +2946,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                                     size: screenWidth * 0.032,
                                   ),
                                   label: Text(
-                                    '${reply.likeCount}',
+                                    '${counts['likeCount']}',
                                     style: TextStyle(fontSize: screenWidth * 0.028),
                                   ),
                                   style: TextButton.styleFrom(
@@ -2960,6 +2963,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                               builder: (context, provider, child) {
                                 final reaction = provider.getCommentReaction(reply.id);
                                 final isDisliked = reaction == 'dislike';
+                                final counts = provider.getCommentCounts(widget.news.url, reply.id);
                                 return TextButton.icon(
                                   onPressed: () async {
                                     try {
@@ -2980,7 +2984,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                                     size: screenWidth * 0.032,
                                   ),
                                   label: Text(
-                                    '${reply.dislikeCount}',
+                                    '${counts['dislikeCount']}',
                                     style: TextStyle(fontSize: screenWidth * 0.028),
                                   ),
                                   style: TextButton.styleFrom(

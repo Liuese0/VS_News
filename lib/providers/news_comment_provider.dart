@@ -121,6 +121,33 @@ class NewsCommentProvider extends ChangeNotifier {
     return _commentReactions[commentId];
   }
 
+  // 특정 댓글의 좋아요/싫어요 수 가져오기
+  Map<String, int> getCommentCounts(String newsUrl, String commentId) {
+    final comments = _commentsByNewsUrl[newsUrl] ?? [];
+
+    // 일반 댓글 확인
+    for (var comment in comments) {
+      if (comment.id == commentId) {
+        return {
+          'likeCount': comment.likeCount,
+          'dislikeCount': comment.dislikeCount,
+        };
+      }
+
+      // 대댓글 확인
+      for (var reply in comment.replies) {
+        if (reply.id == commentId) {
+          return {
+            'likeCount': reply.likeCount,
+            'dislikeCount': reply.dislikeCount,
+          };
+        }
+      }
+    }
+
+    return {'likeCount': 0, 'dislikeCount': 0};
+  }
+
   // 댓글 추가 (Firestore에 저장)
   Future<void> addComment(
       String newsUrl,
