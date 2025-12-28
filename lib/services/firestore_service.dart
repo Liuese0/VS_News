@@ -12,7 +12,7 @@ class FirestoreService {
 
   // ========== 로컬 캐시 ==========
   final Map<String, _NewsStats> _statsCache = {};
-  final Duration _cacheDuration = const Duration(hours: 1); // 5분 → 1시간으로 연장
+  static const Duration _cacheDuration = Duration(hours: 1); // 5분 → 1시간으로 연장
 
   // ========== 댓글 제한 확인 (서버 시간 기반) ==========
 
@@ -86,17 +86,20 @@ class FirestoreService {
     });
   }
 
-  // ========== 즐겨찾기 관리 (최대 10개 제한) ==========
+  // ========== 즐겨찾기 관리 (최대 10개 제한 + 영구 슬롯) ==========
 
-  /// 즐겨찾기 추가 (뉴스 메타데이터 포함, 최대 10개 제한)
+  /// 즐겨찾기 추가 (뉴스 메타데이터 포함, 최대 10개 제한 + 영구 슬롯)
   Future<void> addFavorite(String newsUrl, {
     String? title,
     String? description,
     String? imageUrl,
     String? source,
     DateTime? publishedAt,
+    bool usePermanentSlot = false, // 영구 슬롯 사용 여부
   }) async {
     final uid = await _authService.getCurrentUid();
+    final userInfo = await _authService.getUserInfo();
+    final permanentSlots = userInfo?['permanentBookmarkSlots'] ?? 0;
 
     // 현재 즐겨찾기 개수 확인
     final currentFavorites = await _firestore
@@ -104,8 +107,16 @@ class FirestoreService {
         .where('userId', isEqualTo: uid)
         .get();
 
-    if (currentFavorites.docs.length >= 10) {
-      throw Exception('즐겨찾기는 최대 10개까지 가능합니다');
+    final currentCount = currentFavorites.docs.length;
+
+    if (currentCount >= 10) {
+      // 10개를 초과하면 영구 슬롯 필요
+      if (!usePermanentSlot) {
+        throw Exception('즐겨찾기는 최대 10개까지 가능합니다. 영구 추가권을 사용하시겠습니까?');
+      }
+      if (permanentSlots <= 0) {
+        throw Exception('영구 즐겨찾기 슬롯이 부족합니다');
+      }
     }
 
     final favoriteId = _generateFavoriteId(uid, newsUrl);
@@ -136,6 +147,11 @@ class FirestoreService {
     );
 
     await batch.commit();
+
+    // 3. 영구 슬롯 사용 처리
+    if (usePermanentSlot && currentCount >= 10) {
+      await _authService.usePermanentBookmarkSlot();
+    }
   }
 
   /// 즐겨찾기 제거
@@ -364,7 +380,7 @@ class FirestoreService {
 
   // ========== 댓글 관리 (대댓글 지원) ==========
 
-  /// 댓글 작성 (대댓글 지원, 일일 제한, 글자 수 제한)
+  /// 댓글 작성 (대댓글 지원, 일일 제한, 글자 수 제한, 아이템 사용)
   Future<String> addComment({
     required String newsUrl,
     required String content,
@@ -374,16 +390,13 @@ class FirestoreService {
     String? newsDescription,
     String? newsImageUrl,
     String? newsSource,
+    bool useSpeakingRight = false, // 발언권 사용 여부
+    bool useSpeakingExtension = false, // 발언연장권 사용 여부
   }) async {
-    // 글자 수 제한 (50자)
-    if (content.trim().length > 50) {
-      throw Exception('댓글은 50자 이내로 작성해주세요 (현재: ${content.trim().length}자)');
-    }
-
-    // 일일 댓글 제한 확인 (5개)
-    final todayCount = await getTodayCommentCount();
-    if (todayCount >= 5) {
-      throw Exception('하루 댓글 작성 제한(5개)에 도달했습니다');
+    // 글자 수 제한
+    final contentLength = content.trim().length;
+    if (contentLength > 100) {
+      throw Exception('댓글은 최대 100자까지 작성 가능합니다');
     }
 
     // 대댓글 깊이 제한 (1단계만 허용)
@@ -491,6 +504,14 @@ class FirestoreService {
 
     // 7. 일일 댓글 카운트 증가 (트랜잭션 외부에서)
     await _incrementDailyCommentCount();
+
+    // 8. 아이템 사용 처리
+    if (useSpeakingRight) {
+      await _authService.useSpeakingRight();
+    }
+    if (useSpeakingExtension) {
+      await _authService.useSpeakingExtension();
+    }
 
     // 로컬 캐시 무효화
     _statsCache.remove(newsUrl);
@@ -850,5 +871,5 @@ class _NewsStats {
   });
 
   bool get isExpired =>
-      DateTime.now().difference(fetchedAt) > const Duration(hours: 1); // 1시간으로 변경
+      DateTime.now().difference(fetchedAt) > FirestoreService._cacheDuration;
 }

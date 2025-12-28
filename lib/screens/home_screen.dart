@@ -66,6 +66,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _isLoading = true);
 
     try {
+      // 사용자 정보 새로고침 (영구 슬롯 등 최신 정보 반영)
+      final authProvider = context.read<AuthProvider>();
+      await authProvider.loadUserInfo();
+
       final newsCommentProvider = context.read<NewsCommentProvider>();
 
       // 1. 즐겨찾기 + 통계 (단일 쿼리로 최적화됨)
@@ -1154,11 +1158,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
         }
       } else {
-        if (_favoriteNewsUrls.length >= 10) {
+        // 영구 슬롯을 고려한 한도 계산
+        final authProvider = context.read<AuthProvider>();
+        final userInfo = authProvider.userInfo ?? {};
+        final permanentSlots = userInfo['permanentBookmarkSlots'] ?? 0;
+        final maxLimit = 10 + permanentSlots;
+
+        if (_favoriteNewsUrls.length >= maxLimit) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('즐겨찾기는 최대 10개까지 가능합니다'),
+              SnackBar(
+                content: Text('즐겨찾기는 최대 $maxLimit개까지 가능합니다${permanentSlots > 0 ? ' (영구 슬롯 $permanentSlots개 포함)' : ''}'),
                 backgroundColor: AppColors.warningColor,
               ),
             );
@@ -1236,11 +1246,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 icon: Icons.person_outline,
                 label: '마이페이지',
                 isSelected: false,
-                onTap: () {
-                  Navigator.push(
+                onTap: () async {
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const MyPageScreen()),
                   );
+                  // 마이페이지에서 돌아온 후 사용자 정보 새로고침
+                  if (mounted) {
+                    final authProvider = context.read<AuthProvider>();
+                    await authProvider.loadUserInfo();
+                  }
                 },
               ),
             ],

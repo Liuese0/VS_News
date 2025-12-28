@@ -246,6 +246,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
     final favorites = userInfo['favoriteCount'] ?? 0;
     final comments = userInfo['commentCount'] ?? 0;
     final tokens = userInfo['tokenCount'] ?? 0;
+    final permanentSlots = userInfo['permanentBookmarkSlots'] ?? 0;
+    final maxFavorites = 10 + permanentSlots;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
@@ -281,6 +283,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   icon: Icons.bookmark,
                   label: '즐겨찾기',
                   value: favorites.toString(),
+                  subLabel: '최대 $maxFavorites개',
                   color: const Color(0xFFFFD700),
                   screenWidth: screenWidth,
                 ),
@@ -312,6 +315,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     required String value,
     required Color color,
     required double screenWidth,
+    String? subLabel,
   }) {
     return Column(
       children: [
@@ -343,6 +347,16 @@ class _MyPageScreenState extends State<MyPageScreen> {
             color: const Color(0xFF666666),
           ),
         ),
+        if (subLabel != null) ...[
+          SizedBox(height: screenWidth * 0.005),
+          Text(
+            subLabel,
+            style: TextStyle(
+              fontSize: screenWidth * 0.025,
+              color: const Color(0xFF999999),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1046,19 +1060,19 @@ class _MyPageScreenState extends State<MyPageScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                _buildCashPackage('100토큰', '₩1,000', screenWidth),
+                                _buildCashPackage('100토큰', '₩200', screenWidth),
                                 Container(
                                   width: 1,
                                   height: screenWidth * 0.08,
                                   color: Colors.white.withOpacity(0.3),
                                 ),
-                                _buildCashPackage('500토큰', '₩4,500', screenWidth),
+                                _buildCashPackage('500토큰', '₩800', screenWidth),
                                 Container(
                                   width: 1,
                                   height: screenWidth * 0.08,
                                   color: Colors.white.withOpacity(0.3),
                                 ),
-                                _buildCashPackage('1000토큰', '₩8,000', screenWidth),
+                                _buildCashPackage('1000토큰', '₩1,500', screenWidth),
                               ],
                             ),
                           ),
@@ -1178,6 +1192,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   void _showTokenShop(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final authProvider = context.read<AuthProvider>();
 
     showModalBottomSheet(
       context: context,
@@ -1222,34 +1237,273 @@ class _MyPageScreenState extends State<MyPageScreen> {
               ),
             ),
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.construction,
-                      size: screenWidth * 0.15,
-                      color: Colors.grey.shade400,
+              child: ListView(
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                children: [
+                  _buildShopItem(
+                    context: context,
+                    authProvider: authProvider,
+                    icon: Icons.chat_bubble_outline,
+                    title: '발언권',
+                    description: '댓글 추가권 (1회)',
+                    tokenCost: 25,
+                    itemType: 'speakingRightCount',
+                    color: const Color(0xFF4CAF50),
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildShopItem(
+                    context: context,
+                    authProvider: authProvider,
+                    icon: Icons.text_fields,
+                    title: '발언연장권',
+                    description: '50글자 추가권 (1회)',
+                    tokenCost: 30,
+                    itemType: 'speakingExtensionCount',
+                    color: const Color(0xFF2196F3),
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildShopItem(
+                    context: context,
+                    authProvider: authProvider,
+                    icon: Icons.bookmark_add,
+                    title: '즐겨찾기 영구 추가권',
+                    description: '한도 영구 +1 (누적)',
+                    tokenCost: 100,
+                    itemType: 'permanentBookmarkSlots',
+                    color: const Color(0xFFFF9800),
+                    screenWidth: screenWidth,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShopItem({
+    required BuildContext context,
+    required AuthProvider authProvider,
+    required IconData icon,
+    required String title,
+    required String description,
+    required int tokenCost,
+    required String itemType,
+    required Color color,
+    required double screenWidth,
+  }) {
+    final userInfo = authProvider.userInfo ?? {};
+    final currentTokens = userInfo['tokenCount'] ?? 0;
+    final itemCount = userInfo[itemType] ?? 0;
+    final canAfford = currentTokens >= tokenCost;
+
+    // 영구 즐겨찾기 슬롯인 경우 현재 한도 표시
+    String displayDescription = description;
+    if (itemType == 'permanentBookmarkSlots') {
+      final currentLimit = 10 + itemCount;
+      displayDescription = '한도 영구 +1 (현재: $currentLimit개)';
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        if (canAfford) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text(
+                '$title 구매',
+                style: TextStyle(fontSize: screenWidth * 0.045),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$title을(를) $tokenCost 토큰에 구매하시겠습니까?',
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                  ),
+                  SizedBox(height: screenWidth * 0.02),
+                  Text(
+                    '현재 보유: $itemCount개',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.033,
+                      color: const Color(0xFF666666),
                     ),
-                    SizedBox(height: screenWidth * 0.04),
-                    Text(
-                      '준비 중입니다',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.045,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF333333),
-                      ),
-                    ),
-                    SizedBox(height: screenWidth * 0.02),
-                    Text(
-                      '곧 다양한 아이템을 만나보실 수 있습니다',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.035,
-                        color: const Color(0xFF666666),
-                      ),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(
+                    '취소',
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                  ),
                 ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xD66B7280),
+                  ),
+                  child: Text(
+                    '구매',
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (confirmed == true) {
+            try {
+              // 아이템 구매 (토큰 차감 + 아이템 증가)
+              await _authService.purchaseItem(itemType, tokenCost);
+              await authProvider.loadUserInfo();
+
+              if (context.mounted) {
+                final updatedUserInfo = authProvider.userInfo ?? {};
+                final newItemCount = updatedUserInfo[itemType] ?? 0;
+
+                String message = '$title을(를) 구매했습니다!';
+
+                // 영구 즐겨찾기 슬롯인 경우 한도 표시
+                if (itemType == 'permanentBookmarkSlots') {
+                  final newLimit = 10 + newItemCount;
+                  message = '$title 구매 완료!\n즐겨찾기 한도: $newLimit개';
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(message)),
+                      ],
+                    ),
+                    backgroundColor: const Color(0xFF4CAF50),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+                Navigator.pop(context);
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('구매 중 오류가 발생했습니다: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('토큰이 부족합니다'),
+              backgroundColor: Color(0xFFFF9800),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: canAfford ? color.withOpacity(0.3) : Colors.grey.shade300,
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(screenWidth * 0.03),
+              decoration: BoxDecoration(
+                color: canAfford ? color.withOpacity(0.1) : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: canAfford ? color : Colors.grey.shade400,
+                size: screenWidth * 0.08,
+              ),
+            ),
+            SizedBox(width: screenWidth * 0.04),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.043,
+                      fontWeight: FontWeight.bold,
+                      color: canAfford ? const Color(0xFF333333) : Colors.grey.shade600,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.01),
+                  Text(
+                    displayDescription,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.033,
+                      color: canAfford ? const Color(0xFF666666) : Colors.grey.shade500,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.005),
+                  Text(
+                    '보유: $itemCount개',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.028,
+                      color: itemCount > 0 ? color : Colors.grey.shade400,
+                      fontWeight: itemCount > 0 ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: screenWidth * 0.03,
+                vertical: screenWidth * 0.015,
+              ),
+              decoration: BoxDecoration(
+                color: canAfford ? color : Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.stars,
+                    color: Colors.white,
+                    size: screenWidth * 0.04,
+                  ),
+                  SizedBox(width: screenWidth * 0.01),
+                  Text(
+                    '$tokenCost',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.037,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1399,7 +1653,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   ),
                   _buildHelpItem(
                     '토큰은 어디에 사용하나요?',
-                    '토큰은 일일 댓글 추가, 즐겨찾기 영구추가 등에 사용할 수 있습니다.',
+                    '토큰 상점에서 발언권(댓글 추가), 발언연장권(50글자 추가), 즐겨찾기 영구 추가권을 구매할 수 있습니다.',
                     screenWidth,
                   ),
                   _buildHelpItem(
@@ -1409,12 +1663,12 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   ),
                   _buildHelpItem(
                     '즐겨찾기는 몇 개까지 가능한가요?',
-                    '최대 10개의 뉴스를 즐겨찾기할 수 있습니다.',
+                    '기본 10개까지 가능하며, 영구 추가권을 구매하면 한도가 영구적으로 증가합니다.',
                     screenWidth,
                   ),
                   _buildHelpItem(
                     '댓글 작성 제한이 있나요?',
-                    '하루에 최대 5개의 댓글을 작성할 수 있으며, 댓글은 50자 이내로 작성해야 합니다.',
+                    '하루 최대 5개(발언권으로 추가 가능), 기본 50자(발언연장권으로 100자까지 가능)입니다.',
                     screenWidth,
                   ),
                 ],

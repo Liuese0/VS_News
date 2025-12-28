@@ -104,6 +104,9 @@ class AuthService {
       'favoriteCount': 0,
       'commentCount': 0,
       'nickname': '익명${DateTime.now().millisecondsSinceEpoch % 10000}',
+      'speakingRightCount': 0, // 발언권 (댓글 추가권)
+      'speakingExtensionCount': 0, // 발언연장권 (50글자 추가권)
+      'permanentBookmarkSlots': 0, // 영구 즐겨찾기 슬롯
     });
 
     await _secureStorage.write(key: _uidKey, value: uid);
@@ -139,6 +142,63 @@ class AuthService {
     final uid = await getCurrentUid();
     await _firestore.collection('users').doc(uid).update({
       'tokenCount': FieldValue.increment(amount),
+    });
+  }
+
+  // 토큰 감소
+  Future<void> decrementTokens(int amount) async {
+    final uid = await getCurrentUid();
+    await _firestore.collection('users').doc(uid).update({
+      'tokenCount': FieldValue.increment(-amount),
+    });
+  }
+
+  // 아이템 구매 (토큰 차감 + 아이템 증가)
+  Future<void> purchaseItem(String itemType, int tokenCost) async {
+    final uid = await getCurrentUid();
+
+    await _firestore.runTransaction((transaction) async {
+      final userRef = _firestore.collection('users').doc(uid);
+      final userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw Exception('사용자 정보를 찾을 수 없습니다');
+      }
+
+      final currentTokens = userDoc.data()!['tokenCount'] ?? 0;
+      if (currentTokens < tokenCost) {
+        throw Exception('토큰이 부족합니다');
+      }
+
+      // 토큰 차감 및 아이템 증가
+      transaction.update(userRef, {
+        'tokenCount': FieldValue.increment(-tokenCost),
+        itemType: FieldValue.increment(1),
+      });
+    });
+  }
+
+  // 발언권 사용
+  Future<void> useSpeakingRight() async {
+    final uid = await getCurrentUid();
+    await _firestore.collection('users').doc(uid).update({
+      'speakingRightCount': FieldValue.increment(-1),
+    });
+  }
+
+  // 발언연장권 사용
+  Future<void> useSpeakingExtension() async {
+    final uid = await getCurrentUid();
+    await _firestore.collection('users').doc(uid).update({
+      'speakingExtensionCount': FieldValue.increment(-1),
+    });
+  }
+
+  // 영구 즐겨찾기 슬롯 사용
+  Future<void> usePermanentBookmarkSlot() async {
+    final uid = await getCurrentUid();
+    await _firestore.collection('users').doc(uid).update({
+      'permanentBookmarkSlots': FieldValue.increment(-1),
     });
   }
 
