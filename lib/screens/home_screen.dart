@@ -714,17 +714,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final screenWidth = MediaQuery.of(context).size.width;
     final favoriteCount = _favoriteNews.length;
 
+    // 영구 슬롯을 고려한 한도 계산
+    final authProvider = context.read<AuthProvider>();
+    final userInfo = authProvider.userInfo ?? {};
+    final permanentSlots = userInfo['permanentBookmarkSlots'] ?? 0;
+    final maxLimit = 10 + permanentSlots;
+
     Color borderColor;
     Color backgroundColor;
     Color iconColor;
     Color countColor;
 
-    if (favoriteCount >= 10) {
+    if (favoriteCount >= maxLimit) {
       borderColor = const Color(0xFFEF5350);
       backgroundColor = const Color(0xFFFFEBEE);
       iconColor = const Color(0xFFEF5350);
       countColor = const Color(0xFFD32F2F);
-    } else if (favoriteCount >= 8) {
+    } else if (favoriteCount >= maxLimit - 2) {
       borderColor = const Color(0xFFFF9800);
       backgroundColor = const Color(0xFFFFF3E0);
       iconColor = const Color(0xFFFF9800);
@@ -752,7 +758,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Row(
             children: [
               Icon(
-                favoriteCount >= 10 ? Icons.bookmark : Icons.bookmark,
+                favoriteCount >= maxLimit ? Icons.bookmark : Icons.bookmark,
                 color: iconColor,
                 size: screenWidth * 0.05,
               ),
@@ -776,7 +782,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                       const TextSpan(text: '개의 즐겨찾기 뉴스 '),
                       TextSpan(
-                        text: '($favoriteCount/10)',
+                        text: '($favoriteCount/$maxLimit)',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: countColor,
@@ -788,7 +794,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (favoriteCount >= 10)
+              if (favoriteCount >= maxLimit)
                 Container(
                   padding: EdgeInsets.symmetric(
                     horizontal: screenWidth * 0.02,
