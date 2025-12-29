@@ -658,9 +658,24 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Widget _buildBannerAd() {
     final screenWidth = MediaQuery.of(context).size.width;
+    final authProvider = context.watch<AuthProvider>();
+    final userInfo = authProvider.userInfo ?? {};
+
+    // 지식인패스 또는 소피스패스 확인 (광고 제거 혜택)
+    final now = DateTime.now();
+    final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+    final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+
+    final hasIntellectualPass = intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now);
+    final hasSophistPass = sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now);
+
+    // 광고 제거 패스가 있으면 광고 대신 여백만 표시
+    if (hasIntellectualPass || hasSophistPass) {
+      return SizedBox(height: screenWidth * 0.05);
+    }
 
     if (!_adService.isExploreBannerAdLoaded || _adService.exploreBannerAd == null) {
-      return const SizedBox.shrink();
+      return SizedBox(height: screenWidth * 0.05);
     }
 
     return Container(
@@ -2029,9 +2044,24 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
   Widget _buildNewsDetailBannerAd() {
     final screenWidth = MediaQuery.of(context).size.width;
     final adService = AdService();
+    final authProvider = context.watch<AuthProvider>();
+    final userInfo = authProvider.userInfo ?? {};
+
+    // 지식인패스 또는 소피스패스 확인 (광고 제거 혜택)
+    final now = DateTime.now();
+    final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+    final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+
+    final hasIntellectualPass = intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now);
+    final hasSophistPass = sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now);
+
+    // 광고 제거 패스가 있으면 광고 대신 여백만 표시
+    if (hasIntellectualPass || hasSophistPass) {
+      return SizedBox(height: screenWidth * 0.02);
+    }
 
     if (!adService.isNewsDetailBannerAdLoaded || adService.newsDetailBannerAd == null) {
-      return const SizedBox.shrink();
+      return SizedBox(height: screenWidth * 0.02);
     }
 
     return Container(

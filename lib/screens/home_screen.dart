@@ -351,9 +351,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildBannerAd() {
     final screenWidth = MediaQuery.of(context).size.width;
+    final authProvider = context.watch<AuthProvider>();
+    final userInfo = authProvider.userInfo ?? {};
+
+    // 지식인패스 또는 소피스패스 확인 (광고 제거 혜택)
+    final now = DateTime.now();
+    final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+    final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+
+    final hasIntellectualPass = intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now);
+    final hasSophistPass = sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now);
+
+    // 광고 제거 패스가 있으면 광고 대신 여백만 표시
+    if (hasIntellectualPass || hasSophistPass) {
+      return SizedBox(height: screenWidth * 0.02);
+    }
 
     if (!_adService.isBannerAdLoaded || _adService.bannerAd == null) {
-      return const SizedBox.shrink();
+      return SizedBox(height: screenWidth * 0.02);
     }
 
     return Container(
