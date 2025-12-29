@@ -16,10 +16,18 @@ class BillingService {
   static const String tokens500 = 'tokens_500';
   static const String tokens1000 = 'tokens_1000';
 
+  // 패스 상품 ID (월 구독)
+  static const String modernPass = 'modern_pass_monthly';
+  static const String intellectualPass = 'intellectual_pass_monthly';
+  static const String sophistPass = 'sophist_pass_monthly';
+
   static const List<String> _productIds = [
     tokens100,
     tokens500,
     tokens1000,
+    modernPass,
+    intellectualPass,
+    sophistPass,
   ];
 
   List<ProductDetails> _products = [];
@@ -28,6 +36,7 @@ class BillingService {
 
   // 결제 완료 콜백
   Function(String productId, int tokens)? onPurchaseSuccess;
+  Function(String productId, String passType)? onPassPurchaseSuccess;
   Function(String error)? onPurchaseError;
 
   List<ProductDetails> get products => _products;
@@ -139,10 +148,18 @@ class BillingService {
   /// 성공한 구매 처리
   void _handleSuccessfulPurchase(PurchaseDetails purchaseDetails) {
     final productId = purchaseDetails.productID;
-    int tokens = _getTokensForProduct(productId);
 
-    debugPrint('Purchase successful: $productId -> $tokens tokens');
-    onPurchaseSuccess?.call(productId, tokens);
+    // 패스 상품인지 확인
+    if (_isPassProduct(productId)) {
+      final passType = _getPassTypeForProduct(productId);
+      debugPrint('Pass purchase successful: $productId -> $passType');
+      onPassPurchaseSuccess?.call(productId, passType);
+    } else {
+      // 토큰 상품
+      int tokens = _getTokensForProduct(productId);
+      debugPrint('Purchase successful: $productId -> $tokens tokens');
+      onPurchaseSuccess?.call(productId, tokens);
+    }
   }
 
   /// 상품 ID에 따른 토큰 수 반환
@@ -156,6 +173,27 @@ class BillingService {
         return 1000;
       default:
         return 0;
+    }
+  }
+
+  /// 패스 상품인지 확인
+  bool _isPassProduct(String productId) {
+    return productId == modernPass ||
+        productId == intellectualPass ||
+        productId == sophistPass;
+  }
+
+  /// 상품 ID에 따른 패스 타입 반환
+  String _getPassTypeForProduct(String productId) {
+    switch (productId) {
+      case modernPass:
+        return 'modernPass';
+      case intellectualPass:
+        return 'intellectualPass';
+      case sophistPass:
+        return 'sophistPass';
+      default:
+        return '';
     }
   }
 

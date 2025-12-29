@@ -65,6 +65,7 @@ class NewsCommentProvider extends ChangeNotifier {
             replyCount: 0,
             likeCount: replyData['likeCount'] ?? 0,
             dislikeCount: replyData['dislikeCount'] ?? 0,
+            badge: replyData['badge'],
           );
         }).toList();
 
@@ -83,6 +84,7 @@ class NewsCommentProvider extends ChangeNotifier {
           replies: replies,
           likeCount: data['likeCount'] ?? 0,
           dislikeCount: data['dislikeCount'] ?? 0,
+          badge: data['badge'],
         );
       }).toList();
 
@@ -314,6 +316,7 @@ class NewsCommentProvider extends ChangeNotifier {
           replies: comment.replies,
           likeCount: (comment.likeCount + likeIncrement).clamp(0, 999999),
           dislikeCount: (comment.dislikeCount + dislikeIncrement).clamp(0, 999999),
+          badge: comment.badge,
         );
         return;
       }
@@ -334,6 +337,7 @@ class NewsCommentProvider extends ChangeNotifier {
             replyCount: reply.replyCount,
             likeCount: (reply.likeCount + likeIncrement).clamp(0, 999999),
             dislikeCount: (reply.dislikeCount + dislikeIncrement).clamp(0, 999999),
+            badge: reply.badge,
           );
 
           final updatedReplies = List<NewsComment>.from(comment.replies);
@@ -352,6 +356,7 @@ class NewsCommentProvider extends ChangeNotifier {
             replies: updatedReplies,
             likeCount: comment.likeCount,
             dislikeCount: comment.dislikeCount,
+            badge: comment.badge,
           );
           return;
         }

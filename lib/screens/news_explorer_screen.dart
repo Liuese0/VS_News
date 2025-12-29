@@ -7,6 +7,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../models/models.dart';
 import '../services/news_auto_service.dart';
 import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
 import '../services/ad_service.dart';
 import '../utils/constants.dart';
 import '../providers/auth_provider.dart';
@@ -2114,43 +2115,102 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             ],
           ),
           SizedBox(height: screenWidth * 0.03),
-          FutureBuilder<int>(
-            future: FirestoreService().getTodayCommentCount(),
+          FutureBuilder<Map<String, dynamic>>(
+            future: Future.wait([
+              FirestoreService().getTodayCommentCount(),
+              AuthService().getUserInfo(),
+            ]).then((results) => {
+              'count': results[0] as int,
+              'userInfo': results[1] as Map<String, dynamic>?,
+            }),
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const SizedBox.shrink();
 
-              final todayCount = snapshot.data!;
+              final data = snapshot.data!;
+              final todayCount = data['count'] as int;
+              final userInfo = data['userInfo'] as Map<String, dynamic>?;
               final remaining = 5 - todayCount;
 
+              // 패스 활성화 확인
+              final now = DateTime.now();
+              final modernPassExpiry = userInfo?['modernPass'] as Timestamp?;
+              final intellectualPassExpiry = userInfo?['intellectualPass'] as Timestamp?;
+              final sophistPassExpiry = userInfo?['sophistPass'] as Timestamp?;
+
+              final hasActivePass = (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) ||
+                  (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) ||
+                  (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now));
+
+              String activePassName = '';
+              if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+                activePassName = '소피스패스';
+              } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+                activePassName = '지식인패스';
+              } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+                activePassName = '현대인패스';
+              }
+
               if (remaining <= 0) {
-                return Container(
-                  margin: EdgeInsets.only(bottom: screenWidth * 0.04),
-                  padding: EdgeInsets.all(screenWidth * 0.03),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFEBEE),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFEF5350)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        color: const Color(0xFFEF5350),
-                        size: screenWidth * 0.045,
-                      ),
-                      SizedBox(width: screenWidth * 0.02),
-                      Expanded(
-                        child: Text(
-                          '오늘의 댓글 작성 제한(5개)에 도달했습니다',
-                          style: TextStyle(
-                            fontSize: screenWidth * 0.03,
-                            color: const Color(0xFFD32F2F),
+                // 패스가 있으면 초록색 성공 메시지, 없으면 빨간색 경고 메시지
+                if (hasActivePass) {
+                  return Container(
+                    margin: EdgeInsets.only(bottom: screenWidth * 0.04),
+                    padding: EdgeInsets.all(screenWidth * 0.03),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF4CAF50)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline,
+                          color: const Color(0xFF4CAF50),
+                          size: screenWidth * 0.045,
+                        ),
+                        SizedBox(width: screenWidth * 0.02),
+                        Expanded(
+                          child: Text(
+                            '$activePassName 구매로 댓글 제한이 사라졌습니다 ✨',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.03,
+                              color: const Color(0xFF2E7D32),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
+                      ],
+                    ),
+                  );
+                } else {
+                  return Container(
+                    margin: EdgeInsets.only(bottom: screenWidth * 0.04),
+                    padding: EdgeInsets.all(screenWidth * 0.03),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEBEE),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFEF5350)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          color: const Color(0xFFEF5350),
+                          size: screenWidth * 0.045,
+                        ),
+                        SizedBox(width: screenWidth * 0.02),
+                        Expanded(
+                          child: Text(
+                            '오늘의 댓글 작성 제한(5개)에 도달했습니다',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.03,
+                              color: const Color(0xFFD32F2F),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
               }
 
               return Container(
@@ -3202,47 +3262,78 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
       final userInfo = authProvider.userInfo ?? {};
       final speakingRightCount = userInfo['speakingRightCount'] ?? 0;
 
-      // 일일 제한 확인
+      // 패스 활성화 여부 확인 (발언권 무제한)
+      final now = DateTime.now();
+      final modernPassExpiry = userInfo['modernPass'] as Timestamp?;
+      final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+      final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+
+      final hasActivePass = (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) ||
+          (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) ||
+          (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now));
+
+      // 활성화된 패스 이름 가져오기
+      String? activePassName;
+      if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+        activePassName = '소피스패스';
+      } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+        activePassName = '지식인패스';
+      } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+        activePassName = '현대인패스';
+      }
+
+      // 일일 제한 확인 (5개 이상 작성 시)
       final todayCount = await firestoreService.getTodayCommentCount();
       if (todayCount >= 5 && !_useSpeakingRight) {
-        // 발언권이 있으면 사용 여부 물어보기
-        if (speakingRightCount > 0) {
-          final useRight = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('일일 댓글 제한'),
-              content: Text('하루 댓글 작성 제한(5개)에 도달했습니다.\n발언권을 사용하시겠습니까? (보유: $speakingRightCount개)'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('취소'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xD66B7280),
-                  ),
-                  child: const Text('사용'),
-                ),
-              ],
+        if (hasActivePass) {
+          // 패스가 있으면 안내 메시지만 표시하고 계속 진행
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$activePassName 구매로 댓글 제한이 사라졌습니다 ✨'),
+              backgroundColor: const Color(0xFF4CAF50),
+              duration: const Duration(seconds: 2),
             ),
           );
+        } else {
+          // 패스가 없으면 발언권 사용 또는 제한
+          if (speakingRightCount > 0) {
+            final useRight = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('일일 댓글 제한'),
+                content: Text('하루 댓글 작성 제한(5개)에 도달했습니다.\n발언권을 사용하시겠습니까? (보유: $speakingRightCount개)'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('취소'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xD66B7280),
+                    ),
+                    child: const Text('사용'),
+                  ),
+                ],
+              ),
+            );
 
-          if (useRight != true) {
+            if (useRight != true) {
+              setState(() => _isSubmittingComment = false);
+              return;
+            }
+
+            setState(() => _useSpeakingRight = true);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('하루 댓글 작성 제한(5개)에 도달했습니다'),
+                backgroundColor: AppColors.errorColor,
+              ),
+            );
             setState(() => _isSubmittingComment = false);
             return;
           }
-
-          setState(() => _useSpeakingRight = true);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('하루 댓글 작성 제한(5개)에 도달했습니다'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
-          setState(() => _isSubmittingComment = false);
-          return;
         }
       }
 
@@ -3327,47 +3418,78 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
       final userInfo = authProvider.userInfo ?? {};
       final speakingRightCount = userInfo['speakingRightCount'] ?? 0;
 
-      // 일일 제한 확인
+      // 패스 활성화 여부 확인 (발언권 무제한)
+      final now = DateTime.now();
+      final modernPassExpiry = userInfo['modernPass'] as Timestamp?;
+      final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+      final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+
+      final hasActivePass = (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) ||
+          (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) ||
+          (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now));
+
+      // 활성화된 패스 이름 가져오기
+      String? activePassName;
+      if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+        activePassName = '소피스패스';
+      } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+        activePassName = '지식인패스';
+      } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+        activePassName = '현대인패스';
+      }
+
+      // 일일 제한 확인 (5개 이상 작성 시)
       final todayCount = await firestoreService.getTodayCommentCount();
       if (todayCount >= 5 && !_useSpeakingRight) {
-        // 발언권이 있으면 사용 여부 물어보기
-        if (speakingRightCount > 0) {
-          final useRight = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('일일 댓글 제한'),
-              content: Text('하루 댓글 작성 제한(5개)에 도달했습니다.\n발언권을 사용하시겠습니까? (보유: $speakingRightCount개)'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('취소'),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xD66B7280),
-                  ),
-                  child: const Text('사용'),
-                ),
-              ],
+        if (hasActivePass) {
+          // 패스가 있으면 안내 메시지만 표시하고 계속 진행
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$activePassName 구매로 댓글 제한이 사라졌습니다 ✨'),
+              backgroundColor: const Color(0xFF4CAF50),
+              duration: const Duration(seconds: 2),
             ),
           );
+        } else {
+          // 패스가 없으면 발언권 사용 또는 제한
+          if (speakingRightCount > 0) {
+            final useRight = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('일일 댓글 제한'),
+                content: Text('하루 댓글 작성 제한(5개)에 도달했습니다.\n발언권을 사용하시겠습니까? (보유: $speakingRightCount개)'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('취소'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xD66B7280),
+                    ),
+                    child: const Text('사용'),
+                  ),
+                ],
+              ),
+            );
 
-          if (useRight != true) {
+            if (useRight != true) {
+              setState(() => _isSubmittingComment = false);
+              return;
+            }
+
+            setState(() => _useSpeakingRight = true);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('하루 댓글 작성 제한(5개)에 도달했습니다'),
+                backgroundColor: AppColors.errorColor,
+              ),
+            );
             setState(() => _isSubmittingComment = false);
             return;
           }
-
-          setState(() => _useSpeakingRight = true);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('하루 댓글 작성 제한(5개)에 도달했습니다'),
-              backgroundColor: AppColors.errorColor,
-            ),
-          );
-          setState(() => _isSubmittingComment = false);
-          return;
         }
       }
 
@@ -3450,6 +3572,7 @@ class NewsComment {
   final List<NewsComment> replies;
   final int likeCount;
   final int dislikeCount;
+  final String? badge; // 배지 ('intellectual' 또는 'sophist')
 
   NewsComment({
     required this.id,
@@ -3464,10 +3587,13 @@ class NewsComment {
     this.replies = const [],
     this.likeCount = 0,
     this.dislikeCount = 0,
+    this.badge,
   });
 
   bool get isPro => stance == 'pro';
   bool get isNeutral => stance == 'neutral';
   bool get isCon => stance == 'con';
   bool get isReply => parentId != null;
+  bool get hasIntellectualBadge => badge == 'intellectual';
+  bool get hasSophistBadge => badge == 'sophist';
 }

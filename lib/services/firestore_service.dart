@@ -88,7 +88,7 @@ class FirestoreService {
 
   // ========== 즐겨찾기 관리 (최대 10개 제한 + 영구 슬롯) ==========
 
-  /// 즐겨찾기 추가 (뉴스 메타데이터 포함, 최대 10개 제한 + 영구 슬롯)
+  /// 즐겨찾기 추가 (뉴스 메타데이터 포함, 최대 10개 제한 + 영구 슬롯 + 패스 보너스)
   Future<void> addFavorite(String newsUrl, {
     String? title,
     String? description,
@@ -109,12 +109,34 @@ class FirestoreService {
 
     final currentCount = currentFavorites.docs.length;
 
-    // 영구 슬롯을 고려한 최대 한도 계산
-    final maxLimit = 10 + permanentSlots;
+    // 패스별 보너스 슬롯 계산 (Timestamp로 직접 확인)
+    int passBonus = 0;
+    final now = DateTime.now();
+    final modernPassExpiry = userInfo?['modernPass'] as Timestamp?;
+    final intellectualPassExpiry = userInfo?['intellectualPass'] as Timestamp?;
+    final sophistPassExpiry = userInfo?['sophistPass'] as Timestamp?;
+
+    if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+      passBonus = 100; // 소피스패스
+    } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+      passBonus = 50; // 지식인패스
+    } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+      passBonus = 30; // 현대인패스
+    }
+
+    // 영구 슬롯 + 패스 보너스를 고려한 최대 한도 계산
+    final maxLimit = 10 + permanentSlots + passBonus;
 
     // 최대 한도 초과 확인
     if (currentCount >= maxLimit) {
-      throw Exception('즐겨찾기는 최대 $maxLimit개까지 가능합니다${permanentSlots > 0 ? ' (영구 슬롯 $permanentSlots개 포함)' : ''}');
+      String message = '즐겨찾기는 최대 $maxLimit개까지 가능합니다';
+      if (permanentSlots > 0 || passBonus > 0) {
+        message += ' (기본 10개';
+        if (permanentSlots > 0) message += ' + 영구 슬롯 $permanentSlots개';
+        if (passBonus > 0) message += ' + 패스 보너스 $passBonus개';
+        message += ')';
+      }
+      throw Exception(message);
     }
 
     final favoriteId = _generateFavoriteId(uid, newsUrl);
@@ -169,6 +191,29 @@ class FirestoreService {
     final favoriteId = _generateFavoriteId(uid, newsUrl);
     final doc = await _firestore.collection('favorites').doc(favoriteId).get();
     return doc.exists;
+  }
+
+  /// 현재 즐겨찾기 한도 계산 (기본 + 영구 슬롯 + 패스 보너스)
+  Future<int> getFavoriteLimit() async {
+    final userInfo = await _authService.getUserInfo();
+    final permanentSlots = (userInfo?['permanentBookmarkSlots'] ?? 0) as int;
+
+    // 패스별 보너스 슬롯 계산 (Timestamp로 직접 확인)
+    int passBonus = 0;
+    final now = DateTime.now();
+    final modernPassExpiry = userInfo?['modernPass'] as Timestamp?;
+    final intellectualPassExpiry = userInfo?['intellectualPass'] as Timestamp?;
+    final sophistPassExpiry = userInfo?['sophistPass'] as Timestamp?;
+
+    if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+      passBonus = 100; // 소피스패스
+    } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+      passBonus = 50; // 지식인패스
+    } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+      passBonus = 30; // 현대인패스
+    }
+
+    return 10 + permanentSlots + passBonus;
   }
 
   /// 사용자의 모든 즐겨찾기 URL만 가져오기
@@ -422,6 +467,7 @@ class FirestoreService {
       transaction.set(commentRef, {
         'userId': uid,
         'nickname': userInfo?['nickname'] ?? '익명',
+        'badge': userInfo?['badge'] ?? '', // 배지 정보 추가
         'newsUrl': newsUrl,
         'content': content.trim(),
         'stance': stance,

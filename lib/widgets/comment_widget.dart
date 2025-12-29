@@ -71,16 +71,96 @@ class CommentWidget extends StatelessWidget {
                 ),
               ),
               SizedBox(width: screenWidth * 0.02),
-              // 닉네임
+              // 배지 + 닉네임
               Flexible(
-                child: Text(
-                  comment.nickname,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                    fontSize: screenWidth * 0.035,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 배지 아이콘
+                    if (comment.hasIntellectualBadge)
+                      Container(
+                        margin: EdgeInsets.only(right: screenWidth * 0.015),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth * 0.015,
+                          vertical: screenWidth * 0.005,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3F51B5).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: const Color(0xFF3F51B5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.school,
+                              size: screenWidth * 0.03,
+                              color: const Color(0xFF3F51B5),
+                            ),
+                            SizedBox(width: screenWidth * 0.005),
+                            Text(
+                              '지식인',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.025,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF3F51B5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (comment.hasSophistBadge)
+                      Container(
+                        margin: EdgeInsets.only(right: screenWidth * 0.015),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth * 0.015,
+                          vertical: screenWidth * 0.005,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFFFFD700),
+                              const Color(0xFFFFA500),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: screenWidth * 0.03,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: screenWidth * 0.005),
+                            Text(
+                              '소피스',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.025,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    // 닉네임
+                    Flexible(
+                      child: Text(
+                        comment.nickname,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                          fontSize: screenWidth * 0.035,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const Spacer(),

@@ -714,11 +714,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final screenWidth = MediaQuery.of(context).size.width;
     final favoriteCount = _favoriteNews.length;
 
-    // 영구 슬롯을 고려한 한도 계산
+    // 영구 슬롯 + 패스 보너스를 고려한 한도 계산
     final authProvider = context.read<AuthProvider>();
     final userInfo = authProvider.userInfo ?? {};
     final permanentSlots = userInfo['permanentBookmarkSlots'] ?? 0;
-    final maxLimit = 10 + permanentSlots;
+
+    // 패스별 보너스 슬롯 계산
+    int passBonus = 0;
+    final now = DateTime.now();
+    final modernPassExpiry = userInfo['modernPass'] as Timestamp?;
+    final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+    final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+
+    if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+      passBonus = 100; // 소피스패스
+    } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+      passBonus = 50; // 지식인패스
+    } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+      passBonus = 30; // 현대인패스
+    }
+
+    final maxLimit = 10 + permanentSlots + passBonus;
 
     Color borderColor;
     Color backgroundColor;
@@ -1164,17 +1180,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
         }
       } else {
-        // 영구 슬롯을 고려한 한도 계산
+        // 영구 슬롯 + 패스 보너스를 고려한 한도 계산
         final authProvider = context.read<AuthProvider>();
         final userInfo = authProvider.userInfo ?? {};
         final permanentSlots = userInfo['permanentBookmarkSlots'] ?? 0;
-        final maxLimit = 10 + permanentSlots;
+
+        // 패스별 보너스 슬롯 계산
+        int passBonus = 0;
+        final now = DateTime.now();
+        final modernPassExpiry = userInfo['modernPass'] as Timestamp?;
+        final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+        final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+
+        if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+          passBonus = 100; // 소피스패스
+        } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+          passBonus = 50; // 지식인패스
+        } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+          passBonus = 30; // 현대인패스
+        }
+
+        final maxLimit = 10 + permanentSlots + passBonus;
 
         if (_favoriteNewsUrls.length >= maxLimit) {
           if (mounted) {
+            String limitMessage = '즐겨찾기는 최대 $maxLimit개까지 가능합니다';
+            if (permanentSlots > 0 || passBonus > 0) {
+              limitMessage += ' (기본 10';
+              if (permanentSlots > 0) limitMessage += ' + 영구 $permanentSlots';
+              if (passBonus > 0) limitMessage += ' + 패스 $passBonus';
+              limitMessage += ')';
+            }
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('즐겨찾기는 최대 $maxLimit개까지 가능합니다${permanentSlots > 0 ? ' (영구 슬롯 $permanentSlots개 포함)' : ''}'),
+                content: Text(limitMessage),
                 backgroundColor: AppColors.warningColor,
               ),
             );

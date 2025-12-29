@@ -7,6 +7,7 @@ class Comment {
   final String stance;
   final String content;
   final DateTime createdAt;
+  final String? badge; // 배지 ('intellectual' 또는 'sophist')
 
   Comment({
     required this.id,
@@ -16,6 +17,7 @@ class Comment {
     required this.stance,
     required this.content,
     required this.createdAt,
+    this.badge,
   });
 
   factory Comment.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class Comment {
       stance: json['stance'],
       content: json['content'],
       createdAt: DateTime.parse(json['created_at']),
+      badge: json['badge'],
     );
   }
 
@@ -37,10 +40,13 @@ class Comment {
       'nickname': nickname,
       'stance': stance,
       'content': content,
+      'badge': badge,
     };
   }
 
   bool get isPro => stance == 'pro';
   bool get isNeutral => stance == 'neutral';
   bool get isCon => stance == 'con';
+  bool get hasIntellectualBadge => badge == 'intellectual';
+  bool get hasSophistBadge => badge == 'sophist';
 }

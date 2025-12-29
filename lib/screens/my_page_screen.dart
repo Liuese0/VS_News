@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/auth_provider.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
@@ -1310,6 +1311,57 @@ class _MyPageScreenState extends State<MyPageScreen> {
               child: ListView(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 children: [
+                  // 새로운 패스 상품
+                  _buildPassItem(
+                    context: context,
+                    authProvider: authProvider,
+                    icon: Icons.person,
+                    title: '현대인패스',
+                    description: '발언권 무제한, 발언연장권 10개, 즐겨찾기 +30칸',
+                    tokenCost: 1000,
+                    passType: 'modernPass',
+                    color: const Color(0xFF9C27B0),
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildPassItem(
+                    context: context,
+                    authProvider: authProvider,
+                    icon: Icons.school,
+                    title: '지식인패스',
+                    description: '발언권 무제한, 발언연장권 30개, 즐겨찾기 +50칸, 광고제거, 지식인배지',
+                    tokenCost: 2500,
+                    passType: 'intellectualPass',
+                    color: const Color(0xFF3F51B5),
+                    screenWidth: screenWidth,
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  _buildPassItem(
+                    context: context,
+                    authProvider: authProvider,
+                    icon: Icons.auto_awesome,
+                    title: '소피스패스',
+                    description: '발언권 무제한, 글자제한 300자, 즐겨찾기 +100칸, 광고제거, 소피스배지, 우선표시',
+                    tokenCost: 2999,
+                    passType: 'sophistPass',
+                    color: const Color(0xFFFFD700),
+                    screenWidth: screenWidth,
+                    requiresCondition: true,
+                  ),
+                  SizedBox(height: screenWidth * 0.05),
+                  // 구분선
+                  Divider(thickness: 1, color: Colors.grey.shade300),
+                  SizedBox(height: screenWidth * 0.03),
+                  Text(
+                    '기존 상품 (개별 구매)',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.04,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+                  // 기존 상품 (취소선 추가)
                   _buildShopItem(
                     context: context,
                     authProvider: authProvider,
@@ -1320,6 +1372,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     itemType: 'speakingRightCount',
                     color: const Color(0xFF4CAF50),
                     screenWidth: screenWidth,
+                    isDeprecated: true,
                   ),
                   SizedBox(height: screenWidth * 0.03),
                   _buildShopItem(
@@ -1332,6 +1385,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     itemType: 'speakingExtensionCount',
                     color: const Color(0xFF2196F3),
                     screenWidth: screenWidth,
+                    isDeprecated: true,
                   ),
                   SizedBox(height: screenWidth * 0.03),
                   _buildShopItem(
@@ -1344,6 +1398,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     itemType: 'permanentBookmarkSlots',
                     color: const Color(0xFFFF9800),
                     screenWidth: screenWidth,
+                    isDeprecated: true,
                   ),
                 ],
               ),
@@ -1364,6 +1419,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
     required String itemType,
     required Color color,
     required double screenWidth,
+    bool isDeprecated = false,
   }) {
     final userInfo = authProvider.userInfo ?? {};
     final currentTokens = userInfo['tokenCount'] ?? 0;
@@ -1373,8 +1429,27 @@ class _MyPageScreenState extends State<MyPageScreen> {
     // 영구 즐겨찾기 슬롯인 경우 현재 한도 표시
     String displayDescription = description;
     if (itemType == 'permanentBookmarkSlots') {
-      final currentLimit = 10 + itemCount;
-      displayDescription = '한도 영구 +1 (현재: $currentLimit개)';
+      // 패스 보너스를 포함한 실제 한도 계산
+      int passBonus = 0;
+      final modernPassExpiry = userInfo['modernPass'] as Timestamp?;
+      final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+      final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+      final now = DateTime.now();
+
+      if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+        passBonus = 100;
+      } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+        passBonus = 50;
+      } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+        passBonus = 30;
+      }
+
+      final currentLimit = 10 + itemCount + passBonus;
+      String limitBreakdown = '현재: $currentLimit개 (기본 10';
+      if (itemCount > 0) limitBreakdown += ' + 영구 $itemCount';
+      if (passBonus > 0) limitBreakdown += ' + 패스 $passBonus';
+      limitBreakdown += ')';
+      displayDescription = '한도 영구 +1 ($limitBreakdown)';
     }
 
     return GestureDetector(
@@ -1442,7 +1517,22 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
                 // 영구 즐겨찾기 슬롯인 경우 한도 표시
                 if (itemType == 'permanentBookmarkSlots') {
-                  final newLimit = 10 + newItemCount;
+                  // 패스 보너스 포함
+                  int passBonus = 0;
+                  final modernPassExpiry = updatedUserInfo['modernPass'] as Timestamp?;
+                  final intellectualPassExpiry = updatedUserInfo['intellectualPass'] as Timestamp?;
+                  final sophistPassExpiry = updatedUserInfo['sophistPass'] as Timestamp?;
+                  final now = DateTime.now();
+
+                  if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+                    passBonus = 100;
+                  } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+                    passBonus = 50;
+                  } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+                    passBonus = 30;
+                  }
+
+                  final newLimit = 10 + newItemCount + passBonus;
                   message = '$title 구매 완료!\n즐겨찾기 한도: $newLimit개';
                 }
 
@@ -1525,6 +1615,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
                       fontSize: screenWidth * 0.043,
                       fontWeight: FontWeight.bold,
                       color: canAfford ? const Color(0xFF333333) : Colors.grey.shade600,
+                      decoration: isDeprecated ? TextDecoration.lineThrough : null,
+                      decorationColor: Colors.grey.shade400,
                     ),
                   ),
                   SizedBox(height: screenWidth * 0.01),
@@ -1576,6 +1668,299 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPassItem({
+    required BuildContext context,
+    required AuthProvider authProvider,
+    required IconData icon,
+    required String title,
+    required String description,
+    required int tokenCost,
+    required String passType,
+    required Color color,
+    required double screenWidth,
+    bool requiresCondition = false,
+  }) {
+    final userInfo = authProvider.userInfo ?? {};
+    final currentTokens = userInfo['tokenCount'] ?? 0;
+    final canAfford = currentTokens >= tokenCost;
+
+    // 패스 만료일 확인
+    final passExpiry = userInfo[passType] as Timestamp?;
+    bool isActive = false;
+    String expiryText = '';
+
+    if (passExpiry != null) {
+      final expiryDate = passExpiry.toDate();
+      if (expiryDate.isAfter(DateTime.now())) {
+        isActive = true;
+        final daysLeft = expiryDate.difference(DateTime.now()).inDays;
+        expiryText = '구독 중 (${daysLeft}일 남음)';
+      }
+    }
+
+    // 소피스패스 구매 조건 확인
+    bool meetsCondition = true;
+    String conditionText = '';
+    if (requiresCondition && passType == 'sophistPass') {
+      final commentCount = userInfo['commentCount'] ?? 0;
+      final createdAt = userInfo['createdAt'] as Timestamp?;
+      int daysSinceJoin = 0;
+
+      if (createdAt != null) {
+        daysSinceJoin = DateTime.now().difference(createdAt.toDate()).inDays;
+      }
+
+      // TODO: 좋아요 1000개 이상 댓글 확인 로직 필요
+      final hasPopularComment = false; // 나중에 구현
+      meetsCondition = hasPopularComment && daysSinceJoin >= 100;
+
+      if (!meetsCondition) {
+        conditionText = '구매 조건: 좋아요 1000개 이상 댓글 & 가입 100일 이상';
+      }
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        // 조건 미충족 시 알림
+        if (requiresCondition && !meetsCondition) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(conditionText),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+
+        if (canAfford) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text(
+                '$title 구독',
+                style: TextStyle(fontSize: screenWidth * 0.045),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$title을(를) $tokenCost 토큰에 구독하시겠습니까?',
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                  ),
+                  SizedBox(height: screenWidth * 0.02),
+                  Text(
+                    '구독 기간: 1개월',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.033,
+                      color: const Color(0xFF666666),
+                    ),
+                  ),
+                  if (isActive)
+                    Padding(
+                      padding: EdgeInsets.only(top: screenWidth * 0.02),
+                      child: Text(
+                        '현재 구독 중입니다. 구독 기간이 연장됩니다.',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.033,
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(
+                    '취소',
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: color,
+                  ),
+                  child: Text(
+                    '구독',
+                    style: TextStyle(fontSize: screenWidth * 0.037),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          if (confirmed == true) {
+            try {
+              // 패스 구매
+              await _authService.purchasePass(passType, tokenCost);
+              await authProvider.loadUserInfo();
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('$title 구독이 완료되었습니다!')),
+                      ],
+                    ),
+                    backgroundColor: color,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+                Navigator.pop(context);
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('구독 중 오류가 발생했습니다: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            }
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('토큰이 부족합니다'),
+              backgroundColor: Color(0xFFFF9800),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isActive
+                ? [color.withOpacity(0.2), color.withOpacity(0.1)]
+                : [Colors.white, Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: isActive ? color : (canAfford ? color.withOpacity(0.3) : Colors.grey.shade300),
+            width: isActive ? 3 : 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isActive ? color.withOpacity(0.2) : Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(screenWidth * 0.03),
+                  decoration: BoxDecoration(
+                    color: canAfford ? color.withOpacity(0.15) : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: canAfford ? color : Colors.grey.shade400,
+                    size: screenWidth * 0.08,
+                  ),
+                ),
+                SizedBox(width: screenWidth * 0.03),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.05,
+                          fontWeight: FontWeight.bold,
+                          color: canAfford ? color : Colors.grey.shade600,
+                        ),
+                      ),
+                      if (isActive)
+                        Text(
+                          expiryText,
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.03,
+                            color: color,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.03,
+                    vertical: screenWidth * 0.015,
+                  ),
+                  decoration: BoxDecoration(
+                    color: canAfford ? color : Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.stars,
+                        color: Colors.white,
+                        size: screenWidth * 0.04,
+                      ),
+                      SizedBox(width: screenWidth * 0.01),
+                      Text(
+                        '$tokenCost',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.037,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: screenWidth * 0.02),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: screenWidth * 0.033,
+                color: canAfford ? const Color(0xFF666666) : Colors.grey.shade500,
+                height: 1.3,
+              ),
+            ),
+            if (requiresCondition && !meetsCondition)
+              Padding(
+                padding: EdgeInsets.only(top: screenWidth * 0.02),
+                child: Text(
+                  conditionText,
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.028,
+                    color: Colors.red.shade400,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
