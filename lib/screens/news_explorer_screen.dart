@@ -730,7 +730,7 @@ class _ExploreScreenState extends State<ExploreScreen>
         padding: EdgeInsets.only(
           left: screenWidth * 0.05,
           right: screenWidth * 0.05,
-          top: 0,
+          top: screenWidth * 0.04,
           bottom: screenWidth * 0.05,
         ),
         itemCount: totalItems,
