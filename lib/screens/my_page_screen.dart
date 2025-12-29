@@ -322,7 +322,23 @@ class _MyPageScreenState extends State<MyPageScreen> {
     final comments = userInfo['commentCount'] ?? 0;
     final tokens = userInfo['tokenCount'] ?? 0;
     final permanentSlots = userInfo['permanentBookmarkSlots'] ?? 0;
-    final maxFavorites = 10 + permanentSlots;
+
+    // 패스별 보너스 슬롯 계산
+    int passBonus = 0;
+    final now = DateTime.now();
+    final modernPassExpiry = userInfo['modernPass'] as Timestamp?;
+    final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+    final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+
+    if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+      passBonus = 100; // 소피스패스
+    } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+      passBonus = 50; // 지식인패스
+    } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+      passBonus = 30; // 현대인패스
+    }
+
+    final maxFavorites = 10 + permanentSlots + passBonus;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),

@@ -1122,16 +1122,39 @@ class _ExploreScreenState extends State<ExploreScreen>
           );
         }
       } else {
-        // 영구 슬롯을 고려한 한도 계산
+        // 영구 슬롯과 패스 보너스를 고려한 한도 계산
         final authProvider = context.read<AuthProvider>();
         final userInfo = authProvider.userInfo ?? {};
         final permanentSlots = userInfo['permanentBookmarkSlots'] ?? 0;
-        final maxLimit = 10 + permanentSlots;
+
+        // 패스별 보너스 슬롯 계산
+        int passBonus = 0;
+        final now = DateTime.now();
+        final modernPassExpiry = userInfo['modernPass'] as Timestamp?;
+        final intellectualPassExpiry = userInfo['intellectualPass'] as Timestamp?;
+        final sophistPassExpiry = userInfo['sophistPass'] as Timestamp?;
+
+        if (sophistPassExpiry != null && sophistPassExpiry.toDate().isAfter(now)) {
+          passBonus = 100; // 소피스패스
+        } else if (intellectualPassExpiry != null && intellectualPassExpiry.toDate().isAfter(now)) {
+          passBonus = 50; // 지식인패스
+        } else if (modernPassExpiry != null && modernPassExpiry.toDate().isAfter(now)) {
+          passBonus = 30; // 현대인패스
+        }
+
+        final maxLimit = 10 + permanentSlots + passBonus;
 
         if (_favoriteNewsIds.length >= maxLimit) {
+          String message = '즐겨찾기는 최대 $maxLimit개까지 가능합니다';
+          if (permanentSlots > 0 || passBonus > 0) {
+            message += ' (기본 10개';
+            if (permanentSlots > 0) message += ' + 영구 슬롯 $permanentSlots개';
+            if (passBonus > 0) message += ' + 패스 보너스 $passBonus개';
+            message += ')';
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('즐겨찾기는 최대 $maxLimit개까지 가능합니다${permanentSlots > 0 ? ' (영구 슬롯 $permanentSlots개 포함)' : ''}'),
+              content: Text(message),
               backgroundColor: AppColors.warningColor,
             ),
           );
