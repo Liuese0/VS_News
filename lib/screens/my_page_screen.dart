@@ -1325,7 +1325,11 @@ class _MyPageScreenState extends State<MyPageScreen> {
             ),
             Expanded(
               child: ListView(
-                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                padding: EdgeInsets.only(
+                  left: screenWidth * 0.05,
+                  right: screenWidth * 0.05,
+                  bottom: MediaQuery.of(context).padding.bottom + screenWidth * 0.05,
+                ),
                 children: [
                   // 새로운 패스 상품
                   _buildPassItem(
