@@ -6,8 +6,10 @@ import '../providers/auth_provider.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import '../services/ad_service.dart';
+import '../services/billing_service.dart';
 import '../utils/constants.dart';
 import 'auth/welcome_screen.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
@@ -20,14 +22,86 @@ class _MyPageScreenState extends State<MyPageScreen> {
   final FirestoreService _firestoreService = FirestoreService();
   final AuthService _authService = AuthService();
   final AdService _adService = AdService();
+  final BillingService _billingService = BillingService();
 
   bool _isLoadingAd = false;
+  bool _isLoadingProducts = true;
 
   @override
   void initState() {
     super.initState();
     // 광고 미리 로드
     _adService.preloadAd();
+
+    // 결제 서비스 초기화
+    _initializeBilling();
+  }
+
+  @override
+  void dispose() {
+    _billingService.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initializeBilling() async {
+    setState(() {
+      _isLoadingProducts = true;
+    });
+
+    await _billingService.initialize();
+
+    // 결제 성공 콜백 설정
+    _billingService.onPurchaseSuccess = (productId, tokens) async {
+      try {
+        // 토큰 지급
+        await _authService.incrementTokens(tokens);
+        final authProvider = context.read<AuthProvider>();
+        await authProvider.loadUserInfo();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.stars, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('$tokens 토큰을 구매했습니다!'),
+                ],
+              ),
+              backgroundColor: const Color(0xFF4CAF50),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('토큰 지급 중 오류가 발생했습니다: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    };
+
+    // 결제 에러 콜백 설정
+    _billingService.onPurchaseError = (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: const Color(0xFFFF9800),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    };
+
+    setState(() {
+      _isLoadingProducts = false;
+    });
   }
 
   @override
@@ -978,12 +1052,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                   child: GestureDetector(
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('캐시 충전 기능은 준비 중입니다'),
-                          backgroundColor: Color(0xFFFF9800),
-                        ),
-                      );
+                      Navigator.pop(context);
+                      _showPurchaseDialog(context);
                     },
                     child: Container(
                       padding: EdgeInsets.all(screenWidth * 0.05),
@@ -1703,6 +1773,353 @@ class _MyPageScreenState extends State<MyPageScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showPurchaseDialog(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final products = _billingService.products;
+          final isLoading = _isLoadingProducts || _billingService.purchasePending;
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+            ),
+            child: Column(
+              children: [
+                // 드래그 핸들
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+
+                // 헤더
+                Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.05),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.account_balance_wallet,
+                        color: const Color(0xFF4CAF50),
+                        size: screenWidth * 0.07,
+                      ),
+                      SizedBox(width: screenWidth * 0.03),
+                      Text(
+                        '토큰 구매',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.055,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF333333),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (isLoading)
+                  Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const CircularProgressIndicator(
+                            color: Color(0xFF4CAF50),
+                          ),
+                          SizedBox(height: screenWidth * 0.04),
+                          Text(
+                            _billingService.purchasePending
+                                ? '결제 진행 중...'
+                                : '상품 정보 로딩 중...',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.035,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (!_billingService.isAvailable)
+                  Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: screenWidth * 0.15,
+                            color: Colors.grey.shade400,
+                          ),
+                          SizedBox(height: screenWidth * 0.04),
+                          Text(
+                            '인앱 결제를 사용할 수 없습니다',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.04,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          SizedBox(height: screenWidth * 0.02),
+                          Text(
+                            'Google Play 스토어를 확인해주세요',
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.033,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (products.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.shopping_bag_outlined,
+                              size: screenWidth * 0.15,
+                              color: Colors.grey.shade400,
+                            ),
+                            SizedBox(height: screenWidth * 0.04),
+                            Text(
+                              '사용 가능한 상품이 없습니다',
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.04,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView(
+                        padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                        children: products.map((product) {
+                          return _buildPurchaseItem(
+                            context: context,
+                            product: product,
+                            screenWidth: screenWidth,
+                            setModalState: setModalState,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                // 닫기 버튼
+                Padding(
+                  padding: EdgeInsets.all(screenWidth * 0.05),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: screenWidth * 0.04),
+                      ),
+                      child: Text(
+                        '닫기',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.04,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPurchaseItem({
+    required BuildContext context,
+    required ProductDetails product,
+    required double screenWidth,
+    required Function setModalState,
+  }) {
+    // 상품 ID에서 토큰 수 파싱
+    int tokens = 0;
+    if (product.id == BillingService.tokens100) {
+      tokens = 100;
+    } else if (product.id == BillingService.tokens500) {
+      tokens = 500;
+    } else if (product.id == BillingService.tokens1000) {
+      tokens = 1000;
+    }
+
+    return GestureDetector(
+      onTap: _billingService.purchasePending
+          ? null
+          : () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(
+              '토큰 구매',
+              style: TextStyle(fontSize: screenWidth * 0.045),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$tokens 토큰을 ${product.price}에 구매하시겠습니까?',
+                  style: TextStyle(fontSize: screenWidth * 0.037),
+                ),
+                SizedBox(height: screenWidth * 0.02),
+                Container(
+                  padding: EdgeInsets.all(screenWidth * 0.03),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: screenWidth * 0.04,
+                        color: const Color(0xFF666666),
+                      ),
+                      SizedBox(width: screenWidth * 0.02),
+                      Expanded(
+                        child: Text(
+                          'Google Play 결제가 진행됩니다',
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.032,
+                            color: const Color(0xFF666666),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  '취소',
+                  style: TextStyle(fontSize: screenWidth * 0.037),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                ),
+                child: Text(
+                  '구매',
+                  style: TextStyle(fontSize: screenWidth * 0.037),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed == true) {
+          setModalState(() {});
+          await _billingService.buyProduct(product);
+        }
+      },
+      child: Container(
+        margin: EdgeInsets.only(bottom: screenWidth * 0.03),
+        padding: EdgeInsets.all(screenWidth * 0.04),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF4CAF50),
+              Color(0xFF45A049),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF4CAF50).withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(screenWidth * 0.03),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.stars,
+                color: Colors.white,
+                size: screenWidth * 0.08,
+              ),
+            ),
+            SizedBox(width: screenWidth * 0.04),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$tokens 토큰',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.045,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.005),
+                  Text(
+                    product.description,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.032,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: screenWidth * 0.04,
+                vertical: screenWidth * 0.02,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                product.price,
+                style: TextStyle(
+                  fontSize: screenWidth * 0.04,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF4CAF50),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
