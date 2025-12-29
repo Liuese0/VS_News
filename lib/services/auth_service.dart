@@ -207,7 +207,7 @@ class AuthService {
     });
   }
 
-  // 패스 구매/갱신
+  // 패스 구매/갱신 (토큰으로)
   Future<void> purchasePass(String passType, int tokenCost) async {
     final uid = await getCurrentUid();
 
@@ -245,6 +245,63 @@ class AuthService {
       // 패스별 혜택 지급
       Map<String, dynamic> updates = {
         'tokenCount': FieldValue.increment(-tokenCost),
+        passType: Timestamp.fromDate(newExpiry),
+      };
+
+      // 발언연장권 지급 (최초 구매 시에만)
+      if (currentExpiry == null || !currentExpiry.toDate().isAfter(now)) {
+        if (passType == 'modernPass') {
+          updates['speakingExtensionCount'] = FieldValue.increment(10);
+        } else if (passType == 'intellectualPass') {
+          updates['speakingExtensionCount'] = FieldValue.increment(30);
+          updates['badge'] = 'intellectual';
+        } else if (passType == 'sophistPass') {
+          updates['badge'] = 'sophist';
+        }
+      } else {
+        // 갱신 시에도 배지 유지
+        if (passType == 'intellectualPass') {
+          updates['badge'] = 'intellectual';
+        } else if (passType == 'sophistPass') {
+          updates['badge'] = 'sophist';
+        }
+      }
+
+      transaction.update(userRef, updates);
+    });
+  }
+
+  // 패스 활성화 (구글 플레이 결제용 - 토큰 차감 없음)
+  Future<void> activatePassFromPurchase(String passType) async {
+    final uid = await getCurrentUid();
+
+    await _firestore.runTransaction((transaction) async {
+      final userRef = _firestore.collection('users').doc(uid);
+      final userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw Exception('사용자 정보를 찾을 수 없습니다');
+      }
+
+      final userData = userDoc.data()!;
+      final currentExpiry = userData[passType] as Timestamp?;
+      final now = DateTime.now();
+
+      // 새로운 만료일 계산 (기존 만료일이 있고 아직 유효하면 거기에 추가, 없으면 현재부터)
+      DateTime newExpiry;
+      if (currentExpiry != null) {
+        final expiryDate = currentExpiry.toDate();
+        if (expiryDate.isAfter(now)) {
+          newExpiry = DateTime(expiryDate.year, expiryDate.month + 1, expiryDate.day);
+        } else {
+          newExpiry = DateTime(now.year, now.month + 1, now.day);
+        }
+      } else {
+        newExpiry = DateTime(now.year, now.month + 1, now.day);
+      }
+
+      // 패스별 혜택 지급
+      Map<String, dynamic> updates = {
         passType: Timestamp.fromDate(newExpiry),
       };
 

@@ -87,6 +87,52 @@ class _MyPageScreenState extends State<MyPageScreen> {
       }
     };
 
+    // 패스 구매 성공 콜백 설정
+    _billingService.onPassPurchaseSuccess = (productId, passType) async {
+      try {
+        // 패스 활성화 (토큰 차감 없이)
+        await _authService.activatePassFromPurchase(passType);
+        final authProvider = context.read<AuthProvider>();
+        await authProvider.loadUserInfo();
+
+        if (mounted) {
+          // 패스 이름 가져오기
+          String passName = '';
+          if (passType == 'modernPass') {
+            passName = '현대인패스';
+          } else if (passType == 'intellectualPass') {
+            passName = '지식인패스';
+          } else if (passType == 'sophistPass') {
+            passName = '소피스패스';
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('$passName 구독이 완료되었습니다!')),
+                ],
+              ),
+              backgroundColor: const Color(0xFF9C27B0),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('패스 활성화 중 오류가 발생했습니다: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    };
+
     // 결제 에러 콜백 설정
     _billingService.onPurchaseError = (error) {
       if (mounted) {
@@ -1759,13 +1805,93 @@ class _MyPageScreenState extends State<MyPageScreen> {
           return;
         }
 
-        if (canAfford) {
+        // 구매 방법 선택 다이얼로그
+        final purchaseMethod = await showDialog<String>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(
+              '$title 구독',
+              style: TextStyle(fontSize: screenWidth * 0.045),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '구매 방법을 선택해주세요',
+                  style: TextStyle(fontSize: screenWidth * 0.037),
+                ),
+                SizedBox(height: screenWidth * 0.04),
+                // 토큰으로 구매
+                ListTile(
+                  leading: Icon(Icons.stars, color: color, size: screenWidth * 0.07),
+                  title: Text(
+                    '토큰으로 구매',
+                    style: TextStyle(fontSize: screenWidth * 0.04, fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    '$tokenCost 토큰',
+                    style: TextStyle(fontSize: screenWidth * 0.033),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: canAfford ? color.withOpacity(0.3) : Colors.grey.shade300),
+                  ),
+                  enabled: canAfford,
+                  onTap: canAfford ? () => Navigator.pop(context, 'token') : null,
+                ),
+                SizedBox(height: screenWidth * 0.02),
+                // 구글 플레이로 구매
+                ListTile(
+                  leading: Icon(Icons.shopping_cart, color: const Color(0xFF4CAF50), size: screenWidth * 0.07),
+                  title: Text(
+                    '구글 플레이로 구매',
+                    style: TextStyle(fontSize: screenWidth * 0.04, fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    _billingService.getFormattedPrice(_getProductId(passType)),
+                    style: TextStyle(fontSize: screenWidth * 0.033),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: const Color(0xFF4CAF50).withOpacity(0.3)),
+                  ),
+                  onTap: () => Navigator.pop(context, 'play'),
+                ),
+                if (!canAfford)
+                  Padding(
+                    padding: EdgeInsets.only(top: screenWidth * 0.03),
+                    child: Text(
+                      '토큰이 부족합니다',
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.03,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: Text(
+                  '취소',
+                  style: TextStyle(fontSize: screenWidth * 0.037),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (purchaseMethod == 'token') {
+          // 토큰으로 구매 확인 다이얼로그
           final confirmed = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: Text(
-                '$title 구독',
+                '$title 구독 확인',
                 style: TextStyle(fontSize: screenWidth * 0.045),
               ),
               content: Column(
@@ -1854,14 +1980,9 @@ class _MyPageScreenState extends State<MyPageScreen> {
               }
             }
           }
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('토큰이 부족합니다'),
-              backgroundColor: Color(0xFFFF9800),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+        } else if (purchaseMethod == 'play') {
+          // 구글 플레이로 구매
+          _showPassPurchaseDialog(context, passType, title, color);
         }
       },
       child: Container(
@@ -2578,6 +2699,145 @@ class _MyPageScreenState extends State<MyPageScreen> {
             ),
             child: Text(
               '확인',
+              style: TextStyle(fontSize: screenWidth * 0.037),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // passType을 구글 플레이 상품 ID로 변환
+  String _getProductId(String passType) {
+    switch (passType) {
+      case 'modernPass':
+        return BillingService.modernPass;
+      case 'intellectualPass':
+        return BillingService.intellectualPass;
+      case 'sophistPass':
+        return BillingService.sophistPass;
+      default:
+        return '';
+    }
+  }
+
+  // 패스 구글 플레이 구매 다이얼로그
+  void _showPassPurchaseDialog(BuildContext context, String passType, String passName, Color color) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final productId = _getProductId(passType);
+    final product = _billingService.getProduct(productId);
+
+    if (product == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('상품 정보를 불러올 수 없습니다'),
+          backgroundColor: Color(0xFFFF9800),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          '$passName 구매',
+          style: TextStyle(fontSize: screenWidth * 0.045),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: EdgeInsets.all(screenWidth * 0.04),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.workspace_premium, color: color, size: screenWidth * 0.06),
+                      SizedBox(width: screenWidth * 0.02),
+                      Text(
+                        passName,
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.04,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: screenWidth * 0.02),
+                  Text(
+                    '구독 기간: 1개월',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.035,
+                      color: const Color(0xFF666666),
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.01),
+                  Text(
+                    '가격: ${product.price}',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.04,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF4CAF50),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: screenWidth * 0.03),
+            Row(
+              children: [
+                Icon(
+                  Icons.shopping_cart,
+                  size: screenWidth * 0.04,
+                  color: const Color(0xFF666666),
+                ),
+                SizedBox(width: screenWidth * 0.02),
+                Expanded(
+                  child: Text(
+                    'Google Play 결제가 진행됩니다',
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.032,
+                      color: const Color(0xFF666666),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(
+              '취소',
+              style: TextStyle(fontSize: screenWidth * 0.037),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await _billingService.buyProduct(product);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+            ),
+            child: Text(
+              '구매',
               style: TextStyle(fontSize: screenWidth * 0.037),
             ),
           ),
