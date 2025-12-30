@@ -1770,39 +1770,40 @@ class _MyPageScreenState extends State<MyPageScreen> {
       }
     }
 
-    // 소피스패스 구매 조건 확인
-    bool meetsCondition = true;
-    String conditionText = '';
-    if (requiresCondition && passType == 'sophistPass') {
-      final commentCount = userInfo['commentCount'] ?? 0;
-      final createdAt = userInfo['createdAt'] as Timestamp?;
-      int daysSinceJoin = 0;
-
-      if (createdAt != null) {
-        daysSinceJoin = DateTime.now().difference(createdAt.toDate()).inDays;
-      }
-
-      // TODO: 좋아요 1000개 이상 댓글 확인 로직 필요
-      final hasPopularComment = false; // 나중에 구현
-      meetsCondition = hasPopularComment && daysSinceJoin >= 100;
-
-      if (!meetsCondition) {
-        conditionText = '구매 조건: 좋아요 1000개 이상 댓글 & 가입 100일 이상';
-      }
-    }
-
     return GestureDetector(
       onTap: () async {
-        // 조건 미충족 시 알림
-        if (requiresCondition && !meetsCondition) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(conditionText),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
+        // 소피스패스 구매 조건 확인 (클릭 시점에 확인)
+        if (requiresCondition && passType == 'sophistPass') {
+          final createdAt = userInfo['createdAt'] as Timestamp?;
+          int daysSinceJoin = 0;
+
+          if (createdAt != null) {
+            daysSinceJoin = DateTime.now().difference(createdAt.toDate()).inDays;
+          }
+
+          // 좋아요 1000개 이상 댓글 확인
+          final hasPopularComment = await _firestoreService.hasPopularComment();
+          final meetsCondition = hasPopularComment && daysSinceJoin >= 100;
+
+          if (!meetsCondition) {
+            String conditionText = '구매 조건: 좋아요 1000개 이상 댓글 & 가입 100일 이상\n';
+            if (!hasPopularComment) {
+              conditionText += '(좋아요 1000개 이상 댓글: ✗)';
+            }
+            if (daysSinceJoin < 100) {
+              conditionText += '(가입 ${100 - daysSinceJoin}일 남음)';
+            }
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(conditionText),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+            return;
+          }
         }
 
         // 구매 방법 선택 다이얼로그
@@ -2090,14 +2091,14 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 height: 1.3,
               ),
             ),
-            if (requiresCondition && !meetsCondition)
+            if (requiresCondition)
               Padding(
                 padding: EdgeInsets.only(top: screenWidth * 0.02),
                 child: Text(
-                  conditionText,
+                  '구매 조건: 좋아요 1000개 이상 댓글 & 가입 100일 이상',
                   style: TextStyle(
                     fontSize: screenWidth * 0.028,
-                    color: Colors.red.shade400,
+                    color: Colors.orange.shade700,
                     fontStyle: FontStyle.italic,
                   ),
                 ),

@@ -1031,6 +1031,22 @@ class FirestoreService {
 
     return reactions;
   }
+
+  // ========== 소피스패스 구매 조건 확인 ==========
+
+  /// 사용자가 작성한 댓글 중 좋아요 1000개 이상인 댓글이 있는지 확인
+  Future<bool> hasPopularComment({int minLikes = 1000}) async {
+    final uid = await _authService.getCurrentUid();
+
+    final snapshot = await _firestore
+        .collection('comments')
+        .where('userId', isEqualTo: uid)
+        .where('likeCount', isGreaterThanOrEqualTo: minLikes)
+        .limit(1)
+        .get();
+
+    return snapshot.docs.isNotEmpty;
+  }
 }
 
 /// 뉴스 통계 캐시 모델
