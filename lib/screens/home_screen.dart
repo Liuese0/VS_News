@@ -392,7 +392,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(12),
         child: SizedBox(
           height: 50,
-          child: AdWidget(ad: _adService.bannerAd!),
+          child: AdWidget(
+            key: ObjectKey(_adService.bannerAd),
+            ad: _adService.bannerAd!,
+          ),
         ),
       ),
     );
