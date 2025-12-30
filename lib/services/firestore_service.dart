@@ -1038,14 +1038,13 @@ class FirestoreService {
   Future<bool> hasPopularComment({int minLikes = 1000}) async {
     final uid = await _authService.getCurrentUid();
 
+    // 복합 인덱스 없이 단일 필드 쿼리 + 클라이언트 필터링 사용
     final snapshot = await _firestore
         .collection('comments')
         .where('userId', isEqualTo: uid)
-        .where('likeCount', isGreaterThanOrEqualTo: minLikes)
-        .limit(1)
         .get();
-
-    return snapshot.docs.isNotEmpty;
+    // 클라이언트에서 좋아요 1000개 이상인 댓글 확인
+    return snapshot.docs.any((doc) => (doc.data()['likeCount'] ?? 0) >= minLikes);
   }
 }
 
