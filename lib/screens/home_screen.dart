@@ -41,6 +41,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   DocumentSnapshot? _lastPopularDocument;
   bool _hasMorePopular = true;
 
+  // AdWidget 캐시 - 동일한 BannerAd를 재사용하기 위해
+  Widget? _cachedAdWidget;
+
   @override
   void initState() {
     super.initState();
@@ -371,6 +374,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return SizedBox(height: screenWidth * 0.02);
     }
 
+    // AdWidget을 한 번만 생성하고 캐시하여 재사용
+    // 이렇게 하면 동일한 BannerAd 객체로 여러 AdWidget이 생성되는 것을 방지
+    if (_cachedAdWidget == null) {
+      _cachedAdWidget = AdWidget(
+        key: ObjectKey(_adService.bannerAd),
+        ad: _adService.bannerAd!,
+      );
+    }
+
     return Container(
       margin: EdgeInsets.symmetric(
         horizontal: screenWidth * 0.05,
@@ -392,10 +404,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(12),
         child: SizedBox(
           height: 50,
-          child: AdWidget(
-            key: ObjectKey(_adService.bannerAd),
-            ad: _adService.bannerAd!,
-          ),
+          child: _cachedAdWidget!,
         ),
       ),
     );
@@ -1501,6 +1510,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _cachedAdWidget = null;  // AdWidget 캐시 정리
     super.dispose();
   }
 }
