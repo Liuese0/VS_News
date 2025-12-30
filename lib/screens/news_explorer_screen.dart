@@ -1316,6 +1316,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
               replyCount: 0,
               likeCount: replyData['likeCount'] ?? 0,
               dislikeCount: replyData['dislikeCount'] ?? 0,
+              badge: replyData['badge'],
             );
           }).toList();
 
@@ -1334,6 +1335,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
             replies: replies,
             likeCount: data['likeCount'] ?? 0,
             dislikeCount: data['dislikeCount'] ?? 0,
+            badge: data['badge'],
           );
         }).toList();
       });
