@@ -72,9 +72,8 @@ class CommentWidget extends StatelessWidget {
               ),
               SizedBox(width: screenWidth * 0.02),
               // 배지 + 닉네임
-              Flexible(
+              Expanded(
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     // 배지 아이콘
                     if (comment.hasIntellectualBadge)
@@ -149,7 +148,7 @@ class CommentWidget extends StatelessWidget {
                         ),
                       ),
                     // 닉네임
-                    Flexible(
+                    Expanded(
                       child: Text(
                         comment.nickname,
                         style: TextStyle(
@@ -163,7 +162,7 @@ class CommentWidget extends StatelessWidget {
                   ],
                 ),
               ),
-              const Spacer(),
+              SizedBox(width: screenWidth * 0.02),
               // 작성 시간
               Text(
                 DateFormat('MM/dd HH:mm').format(comment.createdAt),
