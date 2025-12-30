@@ -292,10 +292,82 @@ class _MyPageScreenState extends State<MyPageScreen> {
           ),
           SizedBox(height: screenWidth * 0.04),
 
-          // 닉네임
+          // 배지 + 닉네임
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // 배지 아이콘
+              if (authProvider.userInfo?['badge'] == 'intellectual')
+                Container(
+                  margin: EdgeInsets.only(right: screenWidth * 0.02),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.025,
+                    vertical: screenWidth * 0.01,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.school,
+                        size: screenWidth * 0.045,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: screenWidth * 0.01),
+                      Text(
+                        '지식인',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.035,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (authProvider.userInfo?['badge'] == 'sophist')
+                Container(
+                  margin: EdgeInsets.only(right: screenWidth * 0.02),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenWidth * 0.025,
+                    vertical: screenWidth * 0.01,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFFFD700),
+                        const Color(0xFFFFA500),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        size: screenWidth * 0.045,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: screenWidth * 0.01),
+                      Text(
+                        '소피스',
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.035,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               Text(
                 authProvider.nickname,
                 style: TextStyle(
