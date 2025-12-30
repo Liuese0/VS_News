@@ -2769,9 +2769,8 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                     ),
                     SizedBox(width: screenWidth * 0.025),
                     // 배지 + 닉네임
-                    Flexible(
+                    Expanded(
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
                           // 배지 아이콘
                           if (comment.hasIntellectualBadge)
@@ -2846,7 +2845,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                               ),
                             ),
                           // 닉네임
-                          Flexible(
+                          Expanded(
                             child: Text(
                               comment.nickname,
                               style: TextStyle(
@@ -2860,7 +2859,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
                         ],
                       ),
                     ),
-                    const Spacer(),
+                    SizedBox(width: screenWidth * 0.02),
                     Text(
                       _formatDateTime(comment.createdAt),
                       style: TextStyle(
