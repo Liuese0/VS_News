@@ -12,7 +12,6 @@ import '../utils/constants.dart';
 import '../services/firestore_service.dart';
 import '../services/ad_service.dart';
 import '../providers/news_provider.dart';
-import '../widgets/daily_attendance_widget.dart';
 import '../widgets/daily_attendance_dialog.dart';
 import 'my_page_screen.dart';
 import '../models/auto_collected_news.dart';
@@ -351,7 +350,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         padding: const EdgeInsets.all(0),
         children: [
           _buildProfileHeader(),
-          const DailyAttendanceWidget(),
           _buildStatsCards(),
           _buildQuickActions(),
           _buildSectionTitle(),
