@@ -252,63 +252,90 @@ class AdService {
     required Function(int tokens) onRewarded,
     required Function(String error) onError,
   }) async {
-    // 일일 제한 확인
-    if (!canWatchAd) {
-      onError('하루 광고 시청 제한(5회)에 도달했습니다');
+    try {
+      // 일일 제한 확인
+      if (!canWatchAd) {
+        onError('하루 광고 시청 제한(5회)에 도달했습니다');
+        return false;
+      }
+
+      // 광고 로드 확인
+      if (!_isAdLoaded || _rewardedAd == null) {
+        onError('광고를 불러오는 중입니다. 잠시 후 다시 시도해주세요');
+        _loadRewardedAd(); // 재로드 시도
+        return false;
+      }
+
+      bool rewarded = false;
+      bool errorShown = false;
+
+      // 보상 콜백 설정
+      _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdShowedFullScreenContent: (ad) {
+          print('광고 표시됨');
+        },
+        onAdDismissedFullScreenContent: (ad) {
+          print('광고 닫힘');
+          ad.dispose();
+          _rewardedAd = null;
+          _isAdLoaded = false;
+          _loadRewardedAd(); // 다음 광고 미리 로드
+
+          // 보상을 받지 못하고 닫은 경우
+          if (!rewarded && !errorShown) {
+            errorShown = true;
+            onError('광고를 끝까지 시청해야 토큰을 받을 수 있습니다');
+          }
+        },
+        onAdFailedToShowFullScreenContent: (ad, error) {
+          print('광고 표시 실패: $error');
+          ad.dispose();
+          _rewardedAd = null;
+          _isAdLoaded = false;
+          _loadRewardedAd();
+
+          if (!errorShown) {
+            errorShown = true;
+            onError('광고를 표시할 수 없습니다. 다시 시도해주세요');
+          }
+        },
+      );
+
+      // 광고 표시
+      await _rewardedAd!.show(
+        onUserEarnedReward: (ad, reward) async {
+          rewarded = true;
+          print('보상 획득: ${reward.amount} ${reward.type}');
+
+          try {
+            // 광고 카운트 증가
+            await _incrementAdCount();
+
+            // 토큰 지급
+            onRewarded(_tokensPerAd);
+          } catch (e) {
+            print('보상 처리 중 오류: $e');
+            if (!errorShown) {
+              errorShown = true;
+              onError('보상 처리 중 오류가 발생했습니다');
+            }
+          }
+        },
+      );
+
+      return true;
+    } catch (e) {
+      print('광고 표시 중 예외 발생: $e');
+      onError('광고를 표시하는 중 오류가 발생했습니다');
+
+      // 광고 정리
+      _rewardedAd?.dispose();
+      _rewardedAd = null;
+      _isAdLoaded = false;
+      _loadRewardedAd();
+
       return false;
     }
-
-    // 광고 로드 확인
-    if (!_isAdLoaded || _rewardedAd == null) {
-      onError('광고를 불러오는 중입니다. 잠시 후 다시 시도해주세요');
-      _loadRewardedAd(); // 재로드 시도
-      return false;
-    }
-
-    bool rewarded = false;
-
-    // 보상 콜백 설정
-    _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (ad) {
-        print('광고 표시됨');
-      },
-      onAdDismissedFullScreenContent: (ad) {
-        print('광고 닫힘');
-        ad.dispose();
-        _rewardedAd = null;
-        _isAdLoaded = false;
-        _loadRewardedAd(); // 다음 광고 미리 로드
-
-        // 보상을 받지 못하고 닫은 경우
-        if (!rewarded) {
-          onError('광고를 끝까지 시청해야 토큰을 받을 수 있습니다');
-        }
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        print('광고 표시 실패: $error');
-        ad.dispose();
-        _rewardedAd = null;
-        _isAdLoaded = false;
-        _loadRewardedAd();
-        onError('광고를 표시할 수 없습니다. 다시 시도해주세요');
-      },
-    );
-
-    // 광고 표시
-    await _rewardedAd!.show(
-      onUserEarnedReward: (ad, reward) async {
-        rewarded = true;
-        print('보상 획득: ${reward.amount} ${reward.type}');
-
-        // 광고 카운트 증가
-        await _incrementAdCount();
-
-        // 토큰 지급
-        onRewarded(_tokensPerAd);
-      },
-    );
-
-    return true;
   }
 
   /// 광고 미리 로드 (앱 시작 시 호출)

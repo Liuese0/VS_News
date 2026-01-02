@@ -1,83 +1,99 @@
-// lib/widgets/daily_attendance_dialog.dart
+// lib/widgets/daily_attendance_widget.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/attendance_provider.dart';
 import '../providers/auth_provider.dart';
 
 class DailyAttendanceDialog extends StatefulWidget {
-  const DailyAttendanceDialog({Key? key}) : super(key: key);
+  const DailyAttendanceDialog({super.key});
 
   @override
   State<DailyAttendanceDialog> createState() => _DailyAttendanceDialogState();
 }
 
-class _DailyAttendanceDialogState extends State<DailyAttendanceDialog>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-  bool _isClaimed = false;
+class _DailyAttendanceDialogState extends State<DailyAttendanceDialog> {
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
-    );
-    _scaleAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.elasticOut,
-    );
-    _animationController.forward();
-
     // 출석 상태 로드
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AttendanceProvider>().loadAttendanceStatus();
+      context.read<AttendanceProvider>().loadMonthlyAttendance();
     });
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
   Future<void> _claimReward() async {
-    final attendanceProvider = context.read<AttendanceProvider>();
-    final authProvider = context.read<AuthProvider>();
+    if (_isLoading) return;
 
-    setState(() => _isClaimed = true);
+    setState(() {
+      _isLoading = true;
+    });
 
-    final reward = await attendanceProvider.claimReward();
+    try {
+      final attendanceProvider = context.read<AttendanceProvider>();
+      final authProvider = context.read<AuthProvider>();
 
-    if (reward != null && mounted) {
-      // 사용자 정보 갱신
+      final result = await attendanceProvider.claimReward();
+
+      // 사용자 정보 새로고침
       await authProvider.loadUserInfo();
 
-      // 성공 애니메이션 후 다이얼로그 닫기
-      await Future.delayed(const Duration(milliseconds: 1500));
-      if (mounted) {
-        Navigator.of(context).pop();
+      if (!mounted) return;
 
-        // 보상 받음 알림
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${reward.isWeekend ? '주말' : '평일'} 출석 완료! ${reward.rewardTokens}토큰을 받았습니다 🎉',
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } else if (attendanceProvider.errorMessage != null && mounted) {
-      setState(() => _isClaimed = false);
+      // 성공 메시지 표시
+      final isWeekend = result['isWeekend'] ?? false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(attendanceProvider.errorMessage!),
-          backgroundColor: Colors.orange,
+          content: Row(
+            children: [
+              const Icon(Icons.card_giftcard, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '출석체크 완료! ${result['totalReward']}토큰 획득',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      isWeekend ? '주말 보너스 적용! 🎉' : '연속 ${result['consecutiveDays']}일째 출석 중',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF4CAF50),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
         ),
       );
+
+      // 다이얼로그 닫기
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -85,235 +101,221 @@ class _DailyAttendanceDialogState extends State<DailyAttendanceDialog>
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
 
-    return ScaleTransition(
-      scale: _scaleAnimation,
-      child: Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Consumer<AttendanceProvider>(
-          builder: (context, attendanceProvider, child) {
-            final status = attendanceProvider.attendanceStatus;
-            final hasClaimedToday = status?.hasClaimedToday ?? false;
-            final currentStreak = status?.currentStreak ?? 0;
-            final totalDays = status?.totalDays ?? 0;
-            final isLoading = attendanceProvider.isLoading;
-
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Consumer<AttendanceProvider>(
+        builder: (context, attendanceProvider, child) {
+          if (attendanceProvider.isLoading) {
             return Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: LinearGradient(
-                  colors: hasClaimedToday || _isClaimed
-                      ? [Colors.green.shade400, Colors.green.shade600]
-                      : [Colors.blue.shade400, Colors.blue.shade600],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Column(
+              padding: EdgeInsets.all(screenWidth * 0.1),
+              child: const Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 닫기 버튼
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ),
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('출석 정보를 불러오는 중...'),
+                ],
+              ),
+            );
+          }
 
-                  // 아이콘
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
-                      shape: BoxShape.circle,
+          return Container(
+            padding: EdgeInsets.all(screenWidth * 0.05),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 제목
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today,
+                      color: Color(0xFFFF6B6B),
+                      size: 28,
                     ),
-                    child: Icon(
-                      hasClaimedToday || _isClaimed
-                          ? Icons.check_circle
-                          : Icons.calendar_today,
-                      size: 60,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // 제목
-                  Text(
-                    hasClaimedToday || _isClaimed ? '출석 완료!' : '출석하기',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // 부제목
-                  if (!hasClaimedToday && !_isClaimed)
-                    Text(
-                      _getRewardText(),
+                    const SizedBox(width: 12),
+                    const Text(
+                      '출석체크',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 16,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-
-                  const SizedBox(height: 24),
-
-                  // 통계 카드
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildStatItem('연속', '$currentStreak일', Icons.local_fire_department),
-                        Container(
-                          width: 1,
-                          height: 40,
-                          color: Colors.white.withOpacity(0.3),
-                        ),
-                        _buildStatItem('누적', '$totalDays일', Icons.star),
-                      ],
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // 연속 출석 일수
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6B6B), Color(0xFFFF5252)],
                     ),
+                    borderRadius: BorderRadius.circular(15),
                   ),
-
-                  const SizedBox(height: 24),
-
-                  // 버튼
-                  if (!hasClaimedToday && !_isClaimed)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: isLoading ? null : _claimReward,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.blue.shade600,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: isLoading
-                            ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
-                            : const Text(
-                          '출석하고 토큰 받기',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        '연속 출석',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
                         ),
                       ),
-                    )
-                  else
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
+                      const SizedBox(height: 8),
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(
-                            Icons.check_circle,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 8),
                           Text(
-                            _isClaimed ? '출석 완료!' : '오늘은 이미 출석했어요',
+                            '${attendanceProvider.consecutiveDays}',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 16,
+                              fontSize: 48,
                               fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            '일',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // 보상 정보
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '출석 보상',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildRewardRow('평일 출석', '10토큰'),
+                      _buildRewardRow('주말 출석', '30토큰'),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              color: Color(0xFFFF6B6B),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '주말에는 평일보다 3배 많은 토큰을 받을 수 있어요!',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // 출석체크 버튼
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: attendanceProvider.hasCheckedToday || _isLoading
+                        ? null
+                        : _claimReward,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF6B6B),
+                      disabledBackgroundColor: Colors.grey,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-
-                  const SizedBox(height: 12),
-
-                  // 닫기 텍스트 버튼
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      '닫기',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 14,
+                    child: _isLoading
+                        ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                        : Text(
+                      attendanceProvider.hasCheckedToday
+                          ? '오늘은 이미 출석했습니다'
+                          : '출석하고 토큰받기',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
                   ),
-                ],
-              ),
-            );
-          },
-        ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: Colors.white, size: 24),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+  Widget _buildRewardRow(String label, String reward) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade700,
+            ),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.8),
-            fontSize: 12,
+          Text(
+            reward,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFFF6B6B),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
-
-  String _getRewardText() {
-    final now = DateTime.now();
-    final dayOfWeek = now.weekday;
-
-    // 토요일(6) 또는 일요일(7)
-    if (dayOfWeek == 6 || dayOfWeek == 7) {
-      return '주말 보너스: 30토큰';
-    } else {
-      return '평일 보상: 10토큰';
-    }
-  }
-}
-
-// 출석체크 다이얼로그 표시 헬퍼 함수
-void showDailyAttendanceDialog(BuildContext context) {
-  showDialog(
-    context: context,
-    barrierDismissible: true,
-    builder: (context) => const DailyAttendanceDialog(),
-  );
 }

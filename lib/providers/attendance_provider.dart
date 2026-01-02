@@ -1,68 +1,65 @@
 // lib/providers/attendance_provider.dart
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
-import '../models/attendance.dart';
 
-class AttendanceProvider extends ChangeNotifier {
+class AttendanceProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
 
-  AttendanceStatus? _attendanceStatus;
+  bool _hasCheckedToday = false;
+  int _consecutiveDays = 0;
+  List<String> _monthlyAttendance = [];
   bool _isLoading = false;
-  String? _errorMessage;
 
-  AttendanceStatus? get attendanceStatus => _attendanceStatus;
+  bool get hasCheckedToday => _hasCheckedToday;
+  int get consecutiveDays => _consecutiveDays;
+  List<String> get monthlyAttendance => _monthlyAttendance;
   bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-  bool get hasClaimedToday => _attendanceStatus?.hasClaimedToday ?? false;
-  int get currentStreak => _attendanceStatus?.currentStreak ?? 0;
-  int get totalDays => _attendanceStatus?.totalDays ?? 0;
 
-  /// 출석 현황 조회
+  // 출석 상태 로드
   Future<void> loadAttendanceStatus() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
     try {
-      final result = await _authService.getAttendanceStatus();
-      _attendanceStatus = AttendanceStatus.fromMap(result);
+      _isLoading = true;
+      notifyListeners();
+
+      final status = await _authService.getAttendanceStatus();
+      _hasCheckedToday = status['hasCheckedToday'] ?? false;
+      _consecutiveDays = status['consecutiveDays'] ?? 0;
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      _errorMessage = e.toString();
       _isLoading = false;
       notifyListeners();
+      print('출석 상태 로드 실패: $e');
     }
   }
 
-  /// 출석 보상 청구
-  Future<AttendanceReward?> claimReward() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+  // 이번 달 출석 기록 로드
+  Future<void> loadMonthlyAttendance() async {
+    try {
+      _monthlyAttendance = await _authService.getMonthlyAttendance();
+      notifyListeners();
+    } catch (e) {
+      print('월간 출석 기록 로드 실패: $e');
+    }
+  }
 
+  // 출석 체크 및 보상 받기
+  Future<Map<String, dynamic>> claimReward() async {
     try {
       final result = await _authService.claimDailyAttendance();
-      final reward = AttendanceReward.fromMap(result);
 
-      // 출석 현황 갱신
-      await loadAttendanceStatus();
-
-      _isLoading = false;
+      // 상태 업데이트
+      _hasCheckedToday = true;
+      _consecutiveDays = result['consecutiveDays'] ?? 0;
       notifyListeners();
 
-      return reward;
+      // 월간 출석 기록 다시 로드
+      await loadMonthlyAttendance();
+
+      return result;
     } catch (e) {
-      _errorMessage = e.toString();
-      _isLoading = false;
-      notifyListeners();
-      return null;
+      throw Exception('출석체크에 실패했습니다: $e');
     }
-  }
-
-  /// 에러 메시지 초기화
-  void clearError() {
-    _errorMessage = null;
-    notifyListeners();
   }
 }

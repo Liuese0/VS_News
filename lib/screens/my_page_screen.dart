@@ -1319,16 +1319,20 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   // 광고 시청 로직
   Future<void> _watchRewardedAd(BuildContext context) async {
+    if (!mounted) return;
+
     final authProvider = context.read<AuthProvider>();
 
-    await _adService.showRewardedAd(
-      onRewarded: (tokens) async {
-        // 토큰 지급
-        try {
-          await _authService.incrementTokens(tokens);
-          await authProvider.loadUserInfo();
+    try {
+      await _adService.showRewardedAd(
+        onRewarded: (tokens) async {
+          // 토큰 지급
+          try {
+            await _authService.incrementTokens(tokens);
+            await authProvider.loadUserInfo();
 
-          if (context.mounted) {
+            if (!mounted || !context.mounted) return;
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
@@ -1345,21 +1349,26 @@ class _MyPageScreenState extends State<MyPageScreen> {
             );
 
             // 모달 닫기
-            Navigator.pop(context);
-          }
-        } catch (e) {
-          if (context.mounted) {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          } catch (e) {
+            print('토큰 지급 오류: $e');
+            if (!mounted || !context.mounted) return;
+
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('토큰 지급 중 오류가 발생했습니다: $e'),
                 backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
               ),
             );
           }
-        }
-      },
-      onError: (error) {
-        if (context.mounted) {
+        },
+        onError: (error) {
+          print('광고 오류: $error');
+          if (!mounted || !context.mounted) return;
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(error),
@@ -1367,9 +1376,20 @@ class _MyPageScreenState extends State<MyPageScreen> {
               behavior: SnackBarBehavior.floating,
             ),
           );
-        }
-      },
-    );
+        },
+      );
+    } catch (e) {
+      print('광고 시청 중 예외 발생: $e');
+      if (!mounted || !context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('광고를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _buildCashPackage(String tokens, String price, double screenWidth) {

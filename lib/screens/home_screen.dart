@@ -12,6 +12,7 @@ import '../utils/constants.dart';
 import '../services/firestore_service.dart';
 import '../services/ad_service.dart';
 import '../providers/news_provider.dart';
+import '../providers/attendance_provider.dart';
 import '../widgets/daily_attendance_widget.dart';
 import 'my_page_screen.dart';
 import '../models/auto_collected_news.dart';
@@ -46,9 +47,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // AdWidget 캐시 - 동일한 BannerAd를 재사용하기 위해
   Widget? _cachedAdWidget;
 
-  // 출석체크 팝업 표시 여부
-  bool _hasShownAttendanceDialog = false;
-
   @override
   void initState() {
     super.initState();
@@ -60,16 +58,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  // 앱 시작 시 출석체크 다이얼로그 표시
+  // 출석체크 팝업 표시 (아직 출석하지 않은 경우)
   Future<void> _showAttendanceDialogIfNeeded() async {
-    if (_hasShownAttendanceDialog) return;
+    await Future.delayed(const Duration(milliseconds: 500)); // 화면 로딩 후 잠시 대기
 
-    // 잠시 대기 후 팝업 표시 (화면이 완전히 로드된 후)
-    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
 
-    if (mounted) {
-      _hasShownAttendanceDialog = true;
-      showDailyAttendanceDialog(context);
+    final attendanceProvider = context.read<AttendanceProvider>();
+    await attendanceProvider.loadAttendanceStatus();
+
+    if (!mounted) return;
+
+    // 오늘 출석하지 않았으면 팝업 표시
+    if (!attendanceProvider.hasCheckedToday) {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => const DailyAttendanceDialog(),
+      );
     }
   }
 
@@ -315,17 +321,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 출석체크 아이콘
               IconButton(
                 icon: Icon(
                   Icons.calendar_today,
                   color: Colors.white,
                   size: screenWidth * 0.055,
                 ),
-                onPressed: () => showDailyAttendanceDialog(context),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const DailyAttendanceDialog(),
+                  );
+                },
                 tooltip: '출석체크',
               ),
-              // 로그아웃 아이콘
               IconButton(
                 icon: Icon(
                   Icons.person_outline,
@@ -333,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   size: screenWidth * 0.06,
                 ),
                 onPressed: () => _showLogoutDialog(context, authProvider),
-                tooltip: '내 정보',
+                tooltip: '마이페이지',
               ),
             ],
           ),
