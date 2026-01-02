@@ -6,6 +6,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'providers/auth_provider.dart';
 import 'providers/news_comment_provider.dart';
 import 'providers/news_provider.dart';
+import 'providers/attendance_provider.dart';
 import 'services/ad_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
@@ -36,6 +37,7 @@ class NewsDebaterApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => NewsCommentProvider()),
         ChangeNotifierProvider(create: (_) => NewsProvider()),
+        ChangeNotifierProvider(create: (_) => AttendanceProvider()),
       ],
       child: MaterialApp(
         title: AppStrings.appName,

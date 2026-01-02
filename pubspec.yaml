@@ -13,6 +13,7 @@ dependencies:
   # Firebase
   firebase_core: ^2.24.2
   cloud_firestore: ^4.13.6
+  cloud_functions: ^4.5.7
 
   # 보안 저장소
   flutter_secure_storage: ^9.0.0

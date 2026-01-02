@@ -12,6 +12,7 @@ import '../utils/constants.dart';
 import '../services/firestore_service.dart';
 import '../services/ad_service.dart';
 import '../providers/news_provider.dart';
+import '../widgets/daily_attendance_widget.dart';
 import 'my_page_screen.dart';
 import '../models/auto_collected_news.dart';
 
@@ -45,6 +46,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // AdWidget 캐시 - 동일한 BannerAd를 재사용하기 위해
   Widget? _cachedAdWidget;
 
+  // 출석체크 팝업 표시 여부
+  bool _hasShownAttendanceDialog = false;
+
   @override
   void initState() {
     super.initState();
@@ -52,7 +56,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
+      _showAttendanceDialogIfNeeded();
     });
+  }
+
+  // 앱 시작 시 출석체크 다이얼로그 표시
+  Future<void> _showAttendanceDialogIfNeeded() async {
+    if (_hasShownAttendanceDialog) return;
+
+    // 잠시 대기 후 팝업 표시 (화면이 완전히 로드된 후)
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (mounted) {
+      _hasShownAttendanceDialog = true;
+      showDailyAttendanceDialog(context);
+    }
   }
 
   void _onScroll() {
@@ -294,13 +312,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ],
             ),
           ),
-          IconButton(
-            icon: Icon(
-              Icons.person_outline,
-              color: Colors.white,
-              size: screenWidth * 0.06,
-            ),
-            onPressed: () => _showLogoutDialog(context, authProvider),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 출석체크 아이콘
+              IconButton(
+                icon: Icon(
+                  Icons.calendar_today,
+                  color: Colors.white,
+                  size: screenWidth * 0.055,
+                ),
+                onPressed: () => showDailyAttendanceDialog(context),
+                tooltip: '출석체크',
+              ),
+              // 로그아웃 아이콘
+              IconButton(
+                icon: Icon(
+                  Icons.person_outline,
+                  color: Colors.white,
+                  size: screenWidth * 0.06,
+                ),
+                onPressed: () => _showLogoutDialog(context, authProvider),
+                tooltip: '내 정보',
+              ),
+            ],
           ),
         ],
       ),
