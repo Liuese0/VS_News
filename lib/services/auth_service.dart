@@ -423,22 +423,15 @@ class AuthService {
       consecutiveDays = (yesterdayDoc.data()?['consecutiveDays'] ?? 0) + 1;
     }
 
+    // 주말 여부 확인 (토요일=6, 일요일=7)
+    final isWeekend = today.weekday == DateTime.saturday || today.weekday == DateTime.sunday;
+
     // 보상 계산
-    int baseReward = 5; // 기본 보상
+    int baseReward = isWeekend ? 30 : 10; // 주말 30토큰, 평일 10토큰
     int bonusReward = 0;
     String bonusMessage = '';
 
-    if (consecutiveDays >= 30) {
-      bonusReward = 20;
-      bonusMessage = '30일 연속 출석 달성!';
-    } else if (consecutiveDays >= 7) {
-      bonusReward = 10;
-      bonusMessage = '7일 연속 출석 달성!';
-    } else if (consecutiveDays >= 3) {
-      bonusReward = 5;
-      bonusMessage = '3일 연속 출석 달성!';
-    }
-
+    // 연속 출석 보너스 (제거 - 평일/주말 차등 지급만 유지)
     final totalReward = baseReward + bonusReward;
 
     // 트랜잭션으로 출석 기록 및 토큰 지급
@@ -467,6 +460,7 @@ class AuthService {
       'baseReward': baseReward,
       'bonusReward': bonusReward,
       'bonusMessage': bonusMessage,
+      'isWeekend': isWeekend,
     };
   }
 

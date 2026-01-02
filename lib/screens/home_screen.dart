@@ -12,6 +12,8 @@ import '../utils/constants.dart';
 import '../services/firestore_service.dart';
 import '../services/ad_service.dart';
 import '../providers/news_provider.dart';
+import '../providers/attendance_provider.dart';
+import '../widgets/daily_attendance_widget.dart';
 import 'my_page_screen.dart';
 import '../models/auto_collected_news.dart';
 
@@ -52,7 +54,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
+      _showAttendanceDialogIfNeeded();
     });
+  }
+
+  // 출석체크 팝업 표시 (아직 출석하지 않은 경우)
+  Future<void> _showAttendanceDialogIfNeeded() async {
+    await Future.delayed(const Duration(milliseconds: 500)); // 화면 로딩 후 잠시 대기
+
+    if (!mounted) return;
+
+    final attendanceProvider = context.read<AttendanceProvider>();
+    await attendanceProvider.loadAttendanceStatus();
+
+    if (!mounted) return;
+
+    // 오늘 출석하지 않았으면 팝업 표시
+    if (!attendanceProvider.hasCheckedToday) {
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => const DailyAttendanceDialog(),
+      );
+    }
   }
 
   void _onScroll() {
@@ -294,13 +318,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ],
             ),
           ),
-          IconButton(
-            icon: Icon(
-              Icons.person_outline,
-              color: Colors.white,
-              size: screenWidth * 0.06,
-            ),
-            onPressed: () => _showLogoutDialog(context, authProvider),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: Icon(
+                  Icons.calendar_today,
+                  color: Colors.white,
+                  size: screenWidth * 0.055,
+                ),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const DailyAttendanceDialog(),
+                  );
+                },
+                tooltip: '출석체크',
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.person_outline,
+                  color: Colors.white,
+                  size: screenWidth * 0.06,
+                ),
+                onPressed: () => _showLogoutDialog(context, authProvider),
+                tooltip: '마이페이지',
+              ),
+            ],
           ),
         ],
       ),

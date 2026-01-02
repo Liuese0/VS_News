@@ -43,6 +43,7 @@ class _DailyAttendanceDialogState extends State<DailyAttendanceDialog> {
       if (!mounted) return;
 
       // 성공 메시지 표시
+      final isWeekend = result['isWeekend'] ?? false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -58,11 +59,10 @@ class _DailyAttendanceDialogState extends State<DailyAttendanceDialog> {
                       '출석체크 완료! ${result['totalReward']}토큰 획득',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    if (result['bonusMessage'].isNotEmpty)
-                      Text(
-                        result['bonusMessage'],
-                        style: const TextStyle(fontSize: 12),
-                      ),
+                    Text(
+                      isWeekend ? '주말 보너스 적용! 🎉' : '연속 ${result['consecutiveDays']}일째 출석 중',
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ],
                 ),
               ),
@@ -215,10 +215,35 @@ class _DailyAttendanceDialogState extends State<DailyAttendanceDialog> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _buildRewardRow('기본 보상', '5토큰'),
-                      _buildRewardRow('3일 연속', '+5토큰'),
-                      _buildRewardRow('7일 연속', '+10토큰'),
-                      _buildRewardRow('30일 연속', '+20토큰'),
+                      _buildRewardRow('평일 출석', '10토큰'),
+                      _buildRewardRow('주말 출석', '30토큰'),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              color: Color(0xFFFF6B6B),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '주말에는 평일보다 3배 많은 토큰을 받을 수 있어요!',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
