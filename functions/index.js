@@ -439,3 +439,202 @@ exports.updateNickname = functions.https.onCall(async (data, context) => {
     );
   }
 });
+
+/**
+ * 일일 출석체크 보상 지급
+ * 평일: 10 토큰, 주말(토/일): 30 토큰
+ */
+exports.claimDailyReward = functions.https.onCall(async (data, context) => {
+  const { uid } = data;
+
+  if (!uid) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'UID is required'
+    );
+  }
+
+  try {
+    // 한국 시간대로 오늘 날짜 계산 (UTC+9)
+    const now = new Date();
+    const koreaOffset = 9 * 60; // 9시간을 분으로
+    const koreaTime = new Date(now.getTime() + koreaOffset * 60 * 1000);
+    const todayDate = koreaTime.toISOString().split('T')[0]; // YYYY-MM-DD
+    const dayOfWeek = koreaTime.getDay(); // 0=일요일, 6=토요일
+
+    // 주말 여부 확인
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const rewardTokens = isWeekend ? 30 : 10;
+
+    const userRef = db.collection('users').doc(uid);
+    const attendanceRef = userRef.collection('dailyAttendance').doc(todayDate);
+    const summaryRef = userRef.collection('attendanceSummary').doc('summary');
+
+    const result = await db.runTransaction(async (transaction) => {
+      // 사용자 확인
+      const userDoc = await transaction.get(userRef);
+      if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'User not found');
+      }
+
+      // 이미 오늘 출석했는지 확인
+      const attendanceDoc = await transaction.get(attendanceRef);
+      if (attendanceDoc.exists) {
+        throw new functions.https.HttpsError(
+          'already-exists',
+          'Already claimed today\'s reward'
+        );
+      }
+
+      // 출석 요약 정보 조회
+      const summaryDoc = await transaction.get(summaryRef);
+      const summaryData = summaryDoc.exists ? summaryDoc.data() : {
+        currentStreak: 0,
+        maxStreak: 0,
+        totalDays: 0,
+        lastAttendanceDate: null,
+      };
+
+      // 연속 출석일 계산
+      let newStreak = 1;
+      if (summaryData.lastAttendanceDate) {
+        const lastDate = new Date(summaryData.lastAttendanceDate);
+        const todayDateObj = new Date(todayDate);
+        const diffTime = todayDateObj - lastDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 1) {
+          // 연속 출석
+          newStreak = summaryData.currentStreak + 1;
+        } else if (diffDays === 0) {
+          // 같은 날 (이미 위에서 체크했지만 안전장치)
+          throw new functions.https.HttpsError(
+            'already-exists',
+            'Already claimed today\'s reward'
+          );
+        }
+        // diffDays > 1이면 연속 끊김, newStreak = 1 유지
+      }
+
+      const newMaxStreak = Math.max(newStreak, summaryData.maxStreak);
+
+      // 토큰 업데이트
+      const currentTokens = userDoc.data().tokenCount || 0;
+      const newBalance = currentTokens + rewardTokens;
+
+      transaction.update(userRef, {
+        tokenCount: newBalance,
+      });
+
+      // 토큰 히스토리 기록
+      const historyRef = userRef.collection('tokenHistory').doc();
+      transaction.set(historyRef, {
+        type: 'daily_attendance',
+        amount: rewardTokens,
+        balance: newBalance,
+        description: isWeekend ? '주말 출석 보상' : '일일 출석 보상',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 출석 기록 생성
+      transaction.set(attendanceRef, {
+        date: todayDate,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        rewardTokens: rewardTokens,
+        dayOfWeek: dayOfWeek,
+        consecutiveDays: newStreak,
+        isWeekend: isWeekend,
+      });
+
+      // 출석 요약 업데이트
+      transaction.set(summaryRef, {
+        currentStreak: newStreak,
+        maxStreak: newMaxStreak,
+        totalDays: summaryData.totalDays + 1,
+        lastAttendanceDate: todayDate,
+        lastClaimedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        rewardTokens,
+        newBalance,
+        consecutiveDays: newStreak,
+        totalDays: summaryData.totalDays + 1,
+        isWeekend,
+      };
+    });
+
+    console.log(`Daily reward claimed: uid=${uid}, date=${todayDate}, reward=${rewardTokens}`);
+
+    return {
+      success: true,
+      ...result,
+    };
+
+  } catch (error) {
+    console.error('Claim daily reward error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to claim daily reward'
+    );
+  }
+});
+
+/**
+ * 출석 현황 조회
+ */
+exports.getAttendanceStatus = functions.https.onCall(async (data, context) => {
+  const { uid } = data;
+
+  if (!uid) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'UID is required'
+    );
+  }
+
+  try {
+    // 한국 시간대로 오늘 날짜 계산
+    const now = new Date();
+    const koreaOffset = 9 * 60;
+    const koreaTime = new Date(now.getTime() + koreaOffset * 60 * 1000);
+    const todayDate = koreaTime.toISOString().split('T')[0];
+
+    const userRef = db.collection('users').doc(uid);
+    const attendanceRef = userRef.collection('dailyAttendance').doc(todayDate);
+    const summaryRef = userRef.collection('attendanceSummary').doc('summary');
+
+    const [attendanceDoc, summaryDoc] = await Promise.all([
+      attendanceRef.get(),
+      summaryRef.get(),
+    ]);
+
+    const hasClaimedToday = attendanceDoc.exists;
+    const summaryData = summaryDoc.exists ? summaryDoc.data() : {
+      currentStreak: 0,
+      maxStreak: 0,
+      totalDays: 0,
+      lastAttendanceDate: null,
+    };
+
+    return {
+      success: true,
+      hasClaimedToday,
+      todayDate,
+      currentStreak: summaryData.currentStreak,
+      maxStreak: summaryData.maxStreak,
+      totalDays: summaryData.totalDays,
+      lastAttendanceDate: summaryData.lastAttendanceDate,
+    };
+
+  } catch (error) {
+    console.error('Get attendance status error:', error);
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to get attendance status'
+    );
+  }
+});

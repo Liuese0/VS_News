@@ -1,5 +1,6 @@
 // lib/services/auth_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:crypto/crypto.dart';
@@ -12,6 +13,7 @@ class AuthService {
   AuthService._internal();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
 
@@ -343,5 +345,54 @@ class AuthService {
   Future<void> logout() async {
     await _secureStorage.delete(key: _uidKey);
     _cachedUid = null;
+  }
+
+  // ========== 출석 체크 관련 ==========
+
+  /// 일일 출석 보상 청구
+  /// 평일: 10 토큰, 주말(토/일): 30 토큰
+  Future<Map<String, dynamic>> claimDailyAttendance() async {
+    try {
+      final uid = await getCurrentUid();
+
+      final callable = _functions.httpsCallable('claimDailyReward');
+      final result = await callable.call({'uid': uid});
+
+      return {
+        'success': true,
+        'rewardTokens': result.data['rewardTokens'],
+        'newBalance': result.data['newBalance'],
+        'consecutiveDays': result.data['consecutiveDays'],
+        'totalDays': result.data['totalDays'],
+        'isWeekend': result.data['isWeekend'],
+      };
+    } catch (e) {
+      if (e.toString().contains('already-exists')) {
+        throw Exception('이미 오늘 출석체크를 완료했습니다');
+      }
+      throw Exception('출석체크에 실패했습니다: $e');
+    }
+  }
+
+  /// 출석 현황 조회
+  Future<Map<String, dynamic>> getAttendanceStatus() async {
+    try {
+      final uid = await getCurrentUid();
+
+      final callable = _functions.httpsCallable('getAttendanceStatus');
+      final result = await callable.call({'uid': uid});
+
+      return {
+        'success': true,
+        'hasClaimedToday': result.data['hasClaimedToday'],
+        'todayDate': result.data['todayDate'],
+        'currentStreak': result.data['currentStreak'],
+        'maxStreak': result.data['maxStreak'],
+        'totalDays': result.data['totalDays'],
+        'lastAttendanceDate': result.data['lastAttendanceDate'],
+      };
+    } catch (e) {
+      throw Exception('출석 현황 조회에 실패했습니다: $e');
+    }
   }
 }
