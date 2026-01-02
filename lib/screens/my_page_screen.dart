@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../services/ad_service.dart';
 import '../services/billing_service.dart';
 import '../utils/constants.dart';
+import '../widgets/daily_attendance_widget.dart';
 import 'auth/welcome_screen.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
@@ -1181,6 +1182,85 @@ class _MyPageScreenState extends State<MyPageScreen> {
                     ],
                   ),
                 ),
+
+                // 출석체크 옵션
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                  child: GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => const DailyAttendanceDialog(),
+                      );
+                    },
+                    child: Container(
+                      padding: EdgeInsets.all(screenWidth * 0.05),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFFFFB74D),
+                            Color(0xFFFFA726),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFFB74D).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(screenWidth * 0.03),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.calendar_today,
+                              color: Colors.white,
+                              size: screenWidth * 0.08,
+                            ),
+                          ),
+                          SizedBox(width: screenWidth * 0.04),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '출석체크',
+                                  style: TextStyle(
+                                    fontSize: screenWidth * 0.045,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(height: screenWidth * 0.01),
+                                Text(
+                                  '매일 출석하고 토큰 받기',
+                                  style: TextStyle(
+                                    fontSize: screenWidth * 0.032,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.white,
+                            size: screenWidth * 0.05,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: screenWidth * 0.03),
 
                 // 캐시 충전 옵션
                 Padding(

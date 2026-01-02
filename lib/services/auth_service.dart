@@ -344,4 +344,150 @@ class AuthService {
     await _secureStorage.delete(key: _uidKey);
     _cachedUid = null;
   }
+
+  // 출석체크 상태 조회
+  Future<Map<String, dynamic>> getAttendanceStatus() async {
+    final uid = await getCurrentUid();
+    final today = DateTime.now();
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+    // 오늘 출석 여부 확인
+    final todayDoc = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('attendance')
+        .doc(todayStr)
+        .get();
+
+    final hasCheckedToday = todayDoc.exists;
+
+    // 연속 출석 일수 계산
+    int consecutiveDays = 0;
+    if (hasCheckedToday) {
+      consecutiveDays = todayDoc.data()?['consecutiveDays'] ?? 0;
+    } else {
+      // 어제까지의 연속 출석 일수 확인
+      final yesterday = today.subtract(const Duration(days: 1));
+      final yesterdayStr = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+
+      final yesterdayDoc = await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('attendance')
+          .doc(yesterdayStr)
+          .get();
+
+      if (yesterdayDoc.exists) {
+        consecutiveDays = yesterdayDoc.data()?['consecutiveDays'] ?? 0;
+      }
+    }
+
+    return {
+      'hasCheckedToday': hasCheckedToday,
+      'consecutiveDays': consecutiveDays,
+      'date': todayStr,
+    };
+  }
+
+  // 출석체크 및 보상 지급
+  Future<Map<String, dynamic>> claimDailyAttendance() async {
+    final uid = await getCurrentUid();
+    final today = DateTime.now();
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+    // 이미 오늘 출석했는지 확인
+    final todayDoc = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('attendance')
+        .doc(todayStr)
+        .get();
+
+    if (todayDoc.exists) {
+      throw Exception('이미 오늘 출석체크를 완료했습니다');
+    }
+
+    // 연속 출석 일수 계산
+    int consecutiveDays = 1;
+    final yesterday = today.subtract(const Duration(days: 1));
+    final yesterdayStr = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+
+    final yesterdayDoc = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('attendance')
+        .doc(yesterdayStr)
+        .get();
+
+    if (yesterdayDoc.exists) {
+      consecutiveDays = (yesterdayDoc.data()?['consecutiveDays'] ?? 0) + 1;
+    }
+
+    // 보상 계산
+    int baseReward = 5; // 기본 보상
+    int bonusReward = 0;
+    String bonusMessage = '';
+
+    if (consecutiveDays >= 30) {
+      bonusReward = 20;
+      bonusMessage = '30일 연속 출석 달성!';
+    } else if (consecutiveDays >= 7) {
+      bonusReward = 10;
+      bonusMessage = '7일 연속 출석 달성!';
+    } else if (consecutiveDays >= 3) {
+      bonusReward = 5;
+      bonusMessage = '3일 연속 출석 달성!';
+    }
+
+    final totalReward = baseReward + bonusReward;
+
+    // 트랜잭션으로 출석 기록 및 토큰 지급
+    await _firestore.runTransaction((transaction) async {
+      final userRef = _firestore.collection('users').doc(uid);
+      final attendanceRef = userRef.collection('attendance').doc(todayStr);
+
+      // 출석 기록 저장
+      transaction.set(attendanceRef, {
+        'checkedAt': FieldValue.serverTimestamp(),
+        'consecutiveDays': consecutiveDays,
+        'reward': totalReward,
+        'bonusReward': bonusReward,
+      });
+
+      // 토큰 지급
+      transaction.update(userRef, {
+        'tokenCount': FieldValue.increment(totalReward),
+      });
+    });
+
+    return {
+      'success': true,
+      'consecutiveDays': consecutiveDays,
+      'totalReward': totalReward,
+      'baseReward': baseReward,
+      'bonusReward': bonusReward,
+      'bonusMessage': bonusMessage,
+    };
+  }
+
+  // 이번 달 출석 기록 가져오기
+  Future<List<String>> getMonthlyAttendance() async {
+    final uid = await getCurrentUid();
+    final now = DateTime.now();
+    final firstDay = DateTime(now.year, now.month, 1);
+    final lastDay = DateTime(now.year, now.month + 1, 0);
+
+    final firstDayStr = '${firstDay.year}-${firstDay.month.toString().padLeft(2, '0')}-${firstDay.day.toString().padLeft(2, '0')}';
+    final lastDayStr = '${lastDay.year}-${lastDay.month.toString().padLeft(2, '0')}-${lastDay.day.toString().padLeft(2, '0')}';
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('attendance')
+        .where(FieldPath.documentId, isGreaterThanOrEqualTo: firstDayStr)
+        .where(FieldPath.documentId, isLessThanOrEqualTo: lastDayStr)
+        .get();
+
+    return snapshot.docs.map((doc) => doc.id).toList();
+  }
 }
