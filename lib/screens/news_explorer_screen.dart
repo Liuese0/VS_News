@@ -18,7 +18,9 @@ import '../services/gemini_service.dart';
 import 'web_view_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
-  const ExploreScreen({super.key});
+  final AutoCollectedNews? initialNews;
+
+  const ExploreScreen({super.key, this.initialNews});
 
   @override
   State<ExploreScreen> createState() => _ExploreScreenState();
@@ -94,6 +96,15 @@ class _ExploreScreenState extends State<ExploreScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFavorites();
       _loadNews();
+
+      // 초기 뉴스가 제공된 경우 자동으로 상세보기 표시
+      if (widget.initialNews != null) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) {
+            _showNewsDetailWithDiscussion(widget.initialNews!);
+          }
+        });
+      }
     });
   }
 

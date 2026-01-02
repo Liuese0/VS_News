@@ -13,6 +13,7 @@ import '../services/firestore_service.dart';
 import '../services/ad_service.dart';
 import '../providers/news_provider.dart';
 import 'my_page_screen.dart';
+import '../models/auto_collected_news.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -923,194 +924,216 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final isFavorite = _favoriteNewsUrls.contains(news.newsUrl);
     final screenWidth = MediaQuery.of(context).size.width;
 
-    return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: screenWidth * 0.05,
-        vertical: 7.5,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: () {
+        // NewsDiscussionItem을 AutoCollectedNews로 변환
+        final autoCollectedNews = AutoCollectedNews(
+          title: news.title,
+          description: news.description ?? '뉴스 내용을 확인하려면 탭하세요.',
+          url: news.newsUrl,
+          imageUrl: news.imageUrl,
+          source: news.source ?? '뉴스',
+          publishedAt: news.lastCommentTime,
+          autoCategory: '인기',
+        );
+
+        // ExploreScreen으로 이동하면서 뉴스 객체 전달
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ExploreScreen(initialNews: autoCollectedNews),
           ),
-        ],
-        border: Border.all(color: const Color(0xFFF0F0F0)),
-      ),
-      child: Stack(
-        children: [
-          if (showParticipated || showFavoriteIcon)
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              child: Container(
-                width: 3,
-                decoration: BoxDecoration(
-                  color: showFavoriteIcon
-                      ? const Color(0xFFFFD700)
-                      : const Color(0xD66B7280),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(15),
-                    bottomLeft: Radius.circular(15),
+        );
+      },
+      child: Container(
+        margin: EdgeInsets.symmetric(
+          horizontal: screenWidth * 0.05,
+          vertical: 7.5,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(color: const Color(0xFFF0F0F0)),
+        ),
+        child: Stack(
+          children: [
+            if (showParticipated || showFavoriteIcon)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 3,
+                  decoration: BoxDecoration(
+                    color: showFavoriteIcon
+                        ? const Color(0xFFFFD700)
+                        : const Color(0xD66B7280),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(15),
+                      bottomLeft: Radius.circular(15),
+                    ),
                   ),
                 ),
               ),
-            ),
 
-          Padding(
-            padding: EdgeInsets.all(screenWidth * 0.035),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: screenWidth * 0.02,
-                              vertical: screenWidth * 0.01,
+            Padding(
+              padding: EdgeInsets.all(screenWidth * 0.035),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: screenWidth * 0.02,
+                                vertical: screenWidth * 0.01,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xD66B7280),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                news.source ?? '뉴스',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: screenWidth * 0.03,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xD66B7280),
-                              borderRadius: BorderRadius.circular(12),
+                            SizedBox(width: screenWidth * 0.02),
+                            Flexible(
+                              child: Text(
+                                _formatDateTime(news.lastCommentTime),
+                                style: TextStyle(
+                                  color: const Color(0xFF666666),
+                                  fontSize: screenWidth * 0.03,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
+                          ],
+                        ),
+                      ),
+                      if (_selectedQuickTab == 0 && index < 3)
+                        Container(
+                          width: screenWidth * 0.06,
+                          height: screenWidth * 0.06,
+                          decoration: BoxDecoration(
+                            color: const Color(0xD66B7280),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
                             child: Text(
-                              news.source ?? '뉴스',
+                              '${index + 1}',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: screenWidth * 0.03,
                                 fontWeight: FontWeight.bold,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          SizedBox(width: screenWidth * 0.02),
-                          Flexible(
-                            child: Text(
-                              _formatDateTime(news.lastCommentTime),
-                              style: TextStyle(
-                                color: const Color(0xFF666666),
-                                fontSize: screenWidth * 0.03,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: screenWidth * 0.025),
+
+                  Text(
+                    news.title,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.04,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF333333),
+                      height: 1.4,
                     ),
-                    if (_selectedQuickTab == 0 && index < 3)
-                      Container(
-                        width: screenWidth * 0.06,
-                        height: screenWidth * 0.06,
-                        decoration: BoxDecoration(
-                          color: const Color(0xD66B7280),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${index + 1}',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: screenWidth * 0.03,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                SizedBox(height: screenWidth * 0.025),
-
-                Text(
-                  news.title,
-                  style: TextStyle(
-                    fontSize: screenWidth * 0.04,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF333333),
-                    height: 1.4,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: screenWidth * 0.02),
+                  SizedBox(height: screenWidth * 0.02),
 
-                Text(
-                  news.description ?? '뉴스 내용을 확인하려면 탭하세요.',
-                  style: TextStyle(
-                    color: const Color(0xFF666666),
-                    fontSize: screenWidth * 0.035,
-                    height: 1.4,
+                  Text(
+                    news.description ?? '뉴스 내용을 확인하려면 탭하세요.',
+                    style: TextStyle(
+                      color: const Color(0xFF666666),
+                      fontSize: screenWidth * 0.035,
+                      height: 1.4,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: screenWidth * 0.03),
+                  SizedBox(height: screenWidth * 0.03),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isNewsMode) ...[
-                            _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
-                            SizedBox(width: screenWidth * 0.05),
-                            _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
-                          ] else ...[
-                            _buildStatBadge(Icons.favorite_outline, '${news.participantCount}'),
-                            SizedBox(width: screenWidth * 0.05),
-                            _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
-                            SizedBox(width: screenWidth * 0.05),
-                            _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isNewsMode) ...[
+                              _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                              SizedBox(width: screenWidth * 0.05),
+                              _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
+                            ] else ...[
+                              _buildStatBadge(Icons.favorite_outline, '${news.participantCount}'),
+                              SizedBox(width: screenWidth * 0.05),
+                              _buildStatBadge(Icons.chat_bubble_outline, '${news.commentCount}'),
+                              SizedBox(width: screenWidth * 0.05),
+                              _buildStatBadge(Icons.visibility_outlined, '${(news.participantCount * 10 / 1000).toStringAsFixed(1)}K'),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    GestureDetector(
-                      onTap: () => _toggleFavorite(news),
-                      child: Icon(
-                        isFavorite ? Icons.bookmark : Icons.bookmark_outline,
-                        size: screenWidth * 0.05,
-                        color: isFavorite ? const Color(0xFFFFD700) : const Color(0xFFCCCCCC),
+                      GestureDetector(
+                        onTap: () => _toggleFavorite(news),
+                        child: Icon(
+                          isFavorite ? Icons.bookmark : Icons.bookmark_outline,
+                          size: screenWidth * 0.05,
+                          color: isFavorite ? const Color(0xFFFFD700) : const Color(0xFFCCCCCC),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-
-                if (showParticipated)
-                  Container(
-                    margin: EdgeInsets.only(top: screenWidth * 0.02),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: screenWidth * 0.02,
-                      vertical: screenWidth * 0.01,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xD66B7280),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '참여함',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: screenWidth * 0.03,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    ],
                   ),
-              ],
+
+                  if (showParticipated)
+                    Container(
+                      margin: EdgeInsets.only(top: screenWidth * 0.02),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: screenWidth * 0.02,
+                        vertical: screenWidth * 0.01,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xD66B7280),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '참여함',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: screenWidth * 0.03,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
