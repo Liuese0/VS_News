@@ -13,6 +13,7 @@ import '../services/firestore_service.dart';
 import '../services/ad_service.dart';
 import '../providers/news_provider.dart';
 import 'my_page_screen.dart';
+import '../models/auto_collected_news.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -923,24 +924,45 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final isFavorite = _favoriteNewsUrls.contains(news.newsUrl);
     final screenWidth = MediaQuery.of(context).size.width;
 
-    return Container(
-      margin: EdgeInsets.symmetric(
-        horizontal: screenWidth * 0.05,
-        vertical: 7.5,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: () {
+        // NewsDiscussionItem을 AutoCollectedNews로 변환
+        final autoCollectedNews = AutoCollectedNews(
+          title: news.title,
+          description: news.description ?? '뉴스 내용을 확인하려면 탭하세요.',
+          url: news.newsUrl,
+          imageUrl: news.imageUrl,
+          source: news.source ?? '뉴스',
+          publishedAt: news.lastCommentTime,
+          autoCategory: '인기',
+        );
+
+        // ExploreScreen으로 이동하면서 뉴스 객체 전달
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ExploreScreen(initialNews: autoCollectedNews),
           ),
-        ],
-        border: Border.all(color: const Color(0xFFF0F0F0)),
-      ),
-      child: Stack(
+        );
+      },
+      child: Container(
+        margin: EdgeInsets.symmetric(
+          horizontal: screenWidth * 0.05,
+          vertical: 7.5,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(color: const Color(0xFFF0F0F0)),
+        ),
+        child: Stack(
         children: [
           if (showParticipated || showFavoriteIcon)
             Positioned(
@@ -1111,6 +1133,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ],
+        ),
       ),
     );
   }
