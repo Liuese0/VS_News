@@ -73,6 +73,38 @@ exports.registerDevice = functions.https.onCall(async (data, context) => {
       };
     }
 
+    // 새 기기 등록 전 생성 횟수 제한 확인
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+    const deviceHistoryRef = db.collection('deviceCreationHistory').doc(deviceHash);
+    const deviceHistoryDoc = await deviceHistoryRef.get();
+
+    if (deviceHistoryDoc.exists) {
+      const historyData = deviceHistoryDoc.data();
+      const creationHistory = historyData.creationHistory || [];
+
+      // 1년 내 생성된 계정 필터링
+      const recentCreations = creationHistory.filter(record => {
+        const createdAt = record.createdAt.toDate();
+        return createdAt >= oneYearAgo;
+      });
+
+      // 1년 내 3회 이상 생성 시 차단
+      if (recentCreations.length >= 3) {
+        const oldestCreation = recentCreations.sort((a, b) =>
+          a.createdAt.toDate() - b.createdAt.toDate()
+        )[0];
+        const nextAvailableDate = new Date(oldestCreation.createdAt.toDate());
+        nextAvailableDate.setFullYear(nextAvailableDate.getFullYear() + 1);
+
+        throw new functions.https.HttpsError(
+          'resource-exhausted',
+          `계정 생성 횟수가 초과되었습니다. 다음 생성 가능 날짜: ${nextAvailableDate.toISOString().split('T')[0]}`
+        );
+      }
+    }
+
     // 새 기기 등록
     const uid = generateRandomUID();
     const nickname = `익명${Date.now() % 100000}`;
@@ -98,6 +130,18 @@ exports.registerDevice = functions.https.onCall(async (data, context) => {
       description: '가입 축하 토큰',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // deviceCreationHistory 업데이트
+    await deviceHistoryRef.set({
+      creationHistory: admin.firestore.FieldValue.arrayUnion({
+        uid: uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        platform: platform,
+        appVersion: appVersion,
+      }),
+      lastCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      deviceHash: deviceHash,
+    }, { merge: true });
 
     return {
       success: true,

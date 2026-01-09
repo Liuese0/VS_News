@@ -95,7 +95,38 @@ class AuthService {
       return uid;
     }
 
-    // 4. 새 계정 생성
+    // 4. 새 계정 생성 전 생성 횟수 제한 확인
+    final oneYearAgo = DateTime.now().subtract(const Duration(days: 365));
+    final deviceHistoryRef = _firestore.collection('deviceCreationHistory').doc(deviceHash);
+    final deviceHistoryDoc = await deviceHistoryRef.get();
+
+    if (deviceHistoryDoc.exists) {
+      final historyData = deviceHistoryDoc.data()!;
+      final creationHistory = historyData['creationHistory'] as List<dynamic>? ?? [];
+
+      // 1년 내 생성된 계정 필터링
+      final recentCreations = creationHistory.where((record) {
+        final createdAt = (record['createdAt'] as Timestamp).toDate();
+        return createdAt.isAfter(oneYearAgo);
+      }).toList();
+
+      // 1년 내 3회 이상 생성 시 차단
+      if (recentCreations.length >= 3) {
+        final oldestCreation = recentCreations.reduce((a, b) {
+          final aDate = (a['createdAt'] as Timestamp).toDate();
+          final bDate = (b['createdAt'] as Timestamp).toDate();
+          return aDate.isBefore(bDate) ? a : b;
+        });
+        final nextAvailableDate = (oldestCreation['createdAt'] as Timestamp)
+            .toDate()
+            .add(const Duration(days: 365));
+
+        throw Exception(
+            '계정 생성 횟수가 초과되었습니다.\n다음 생성 가능 날짜: ${nextAvailableDate.year}-${nextAvailableDate.month.toString().padLeft(2, '0')}-${nextAvailableDate.day.toString().padLeft(2, '0')}');
+      }
+    }
+
+    // 5. 새 계정 생성
     final newUserRef = _firestore.collection('users').doc();
     final uid = newUserRef.id;
 
@@ -116,6 +147,19 @@ class AuthService {
       'badge': '', // 배지 ('intellectual' 또는 'sophist')
       'status': 'active', // 계정 상태 (active, transferred)
     });
+
+    // 6. deviceCreationHistory 업데이트
+    await deviceHistoryRef.set({
+      'creationHistory': FieldValue.arrayUnion([
+        {
+          'uid': uid,
+          'createdAt': FieldValue.serverTimestamp(),
+          'platform': Platform.isAndroid ? 'android' : 'ios',
+        }
+      ]),
+      'lastCreatedAt': FieldValue.serverTimestamp(),
+      'deviceHash': deviceHash,
+    }, SetOptions(merge: true));
 
     await _secureStorage.write(key: _uidKey, value: uid);
     _cachedUid = uid;
