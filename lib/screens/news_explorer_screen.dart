@@ -195,14 +195,23 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Future<void> _loadPopularNews() async {
     try {
-      final result = await _firestoreService.getPopularDiscussions(
-        limit: _pageSize,
-        lastDocument: null,
-      );
+      List<Map<String, dynamic>> popularDiscussions;
 
-      final popularDiscussions = result['discussions'] as List<Map<String, dynamic>>;
-      _lastDocument = result['lastDocument'] as DocumentSnapshot?;
-      _hasMore = result['hasMore'] as bool;
+      if (_selectedTab == 1) {
+        // 논쟁 이슈: 한 달 기준 상위 10개
+        popularDiscussions = await _firestoreService.getControversialIssues();
+        _lastDocument = null;
+        _hasMore = false; // 논쟁 이슈는 고정 10개만 표시
+      } else {
+        // 실시간 뉴스: 24시간 기준 페이지네이션
+        final result = await _firestoreService.getPopularDiscussions(
+          limit: _pageSize,
+          lastDocument: null,
+        );
+        popularDiscussions = result['discussions'] as List<Map<String, dynamic>>;
+        _lastDocument = result['lastDocument'] as DocumentSnapshot?;
+        _hasMore = result['hasMore'] as bool;
+      }
 
       if (popularDiscussions.isEmpty) {
         // 인기 뉴스가 없으면 일반 뉴스 표시
@@ -268,6 +277,9 @@ class _ExploreScreenState extends State<ExploreScreen>
 
   Future<void> _loadMorePopularNews() async {
     if (_isLoadingMore || !_hasMore || _lastDocument == null) return;
+
+    // 논쟁 이슈는 고정 10개만 표시하므로 페이지네이션 없음
+    if (_selectedTab == 1) return;
 
     setState(() => _isLoadingMore = true);
 
@@ -567,11 +579,11 @@ class _ExploreScreenState extends State<ExploreScreen>
           Row(
             children: [
               Expanded(
-                child: _buildTabButton('실시간 뉴스', 0),
+                child: _buildTabButton('뉴스(1d)', 0),
               ),
               SizedBox(width: screenWidth * 0.025),
               Expanded(
-                child: _buildTabButton('논쟁 이슈', 1),
+                child: _buildTabButton('논쟁(30d)', 1),
               ),
             ],
           ),
@@ -607,7 +619,10 @@ class _ExploreScreenState extends State<ExploreScreen>
 
     return GestureDetector(
       onTap: () {
-        setState(() => _selectedTab = index);
+        if (_selectedTab != index) {
+          setState(() => _selectedTab = index);
+          _loadNews(); // 탭 변경 시 뉴스 다시 로드
+        }
       },
       child: Container(
         padding: EdgeInsets.symmetric(vertical: screenWidth * 0.03),
@@ -1171,9 +1186,12 @@ class _ExploreScreenState extends State<ExploreScreen>
         final maxLimit = 10 + permanentSlots + passBonus;
 
         if (_favoriteNewsIds.length >= maxLimit) {
-          String message = '즐겨찾기는 최대 $maxLimit개까지 가능합니다';
+          final currentCount = _favoriteNewsIds.length;
+          final needToDelete = currentCount - maxLimit + 1;
+
+          String message = '현재 $currentCount개/$maxLimit개 - ${needToDelete}개를 삭제해야 새로 추가 가능';
           if (permanentSlots > 0 || passBonus > 0) {
-            message += ' (기본 10개';
+            message += '\n(기본 10개';
             if (permanentSlots > 0) message += ' + 영구 슬롯 $permanentSlots개';
             if (passBonus > 0) message += ' + 패스 보너스 $passBonus개';
             message += ')';
@@ -1182,6 +1200,7 @@ class _ExploreScreenState extends State<ExploreScreen>
             SnackBar(
               content: Text(message),
               backgroundColor: AppColors.warningColor,
+              duration: const Duration(seconds: 3),
             ),
           );
           return;

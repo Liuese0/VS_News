@@ -129,7 +129,8 @@ class FirestoreService {
 
     // 최대 한도 초과 확인
     if (currentCount >= maxLimit) {
-      String message = '즐겨찾기는 최대 $maxLimit개까지 가능합니다';
+      final needToDelete = currentCount - maxLimit + 1;
+      String message = '현재 $currentCount개/$maxLimit개 - ${needToDelete}개를 삭제해야 새로 추가 가능';
       if (permanentSlots > 0 || passBonus > 0) {
         message += ' (기본 10개';
         if (permanentSlots > 0) message += ' + 영구 슬롯 $permanentSlots개';

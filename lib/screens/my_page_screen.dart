@@ -492,8 +492,12 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   icon: Icons.bookmark,
                   label: '즐겨찾기',
                   value: favorites.toString(),
-                  subLabel: '최대 $maxFavorites개',
-                  color: const Color(0xFFFFD700),
+                  subLabel: favorites > maxFavorites
+                      ? '⚠️ 한도 초과 ($maxFavorites개)'
+                      : '최대 $maxFavorites개',
+                  color: favorites > maxFavorites
+                      ? const Color(0xFFFF5252)
+                      : const Color(0xFFFFD700),
                   screenWidth: screenWidth,
                 ),
                 _buildStatItem(
