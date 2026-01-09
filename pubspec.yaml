@@ -57,6 +57,9 @@ dependencies:
   # AI
   google_generative_ai: ^0.4.0
 
+  # Environment variables
+  flutter_dotenv: ^5.1.0
+
   # Google AdMob
   google_mobile_ads: ^5.1.0
 
@@ -70,3 +73,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - .env

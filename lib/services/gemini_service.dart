@@ -1,7 +1,8 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class GeminiService {
-  static const String _apiKey = 'AIzaSyC3Gvdhls4Yxjeu7JRqdx3Ny10psVXu6RA';
+  static String get _apiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
   static DateTime? _lastRequestTime;
   static const _minDelayBetweenRequests = Duration(milliseconds: 4000);
 

@@ -1,5 +1,6 @@
 // lib/utils/constants.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:io';
 
 class AppColors {
@@ -150,14 +151,14 @@ class ApiConstants {
     ];
   }
 
-  // News API 키
-  static const String newsApiKey = '4298913bb759467bbf9d04dbdddb9749';
+  // News API 키 (환경 변수에서 읽기)
+  static String get newsApiKey => dotenv.env['NEWS_API_KEY'] ?? '';
 
   // 뉴스 API 엔드포인트
   static const String newsApiBaseUrl = 'https://newsapi.org/v2';
 
-  // Gemini API 키
-  static const String geminiApiKey = 'YOUR_GEMINI_API_KEY_HERE'; // TODO: 실제 API 키로 교체하세요
+  // Gemini API 키 (환경 변수에서 읽기)
+  static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
 
   // 한국 뉴스 소스들
   static const List<String> koreanNewsSources = [
