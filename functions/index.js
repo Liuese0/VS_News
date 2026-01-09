@@ -638,3 +638,233 @@ exports.getAttendanceStatus = functions.https.onCall(async (data, context) => {
     );
   }
 });
+
+/**
+ * 복구 코드 생성 (읽기 쉬운 형식: XXXX-XXXX-XXXX-XXXX)
+ */
+function generateRecoveryCodeString() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동 가능한 문자 제외 (I, O, 0, 1)
+  let code = '';
+  for (let i = 0; i < 16; i++) {
+    if (i > 0 && i % 4 === 0) {
+      code += '-';
+    }
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+/**
+ * 계정 복구 코드 조회 또는 생성
+ */
+exports.getOrCreateRecoveryCode = functions.https.onCall(async (data, context) => {
+  const { uid } = data;
+
+  if (!uid) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'UID is required'
+    );
+  }
+
+  try {
+    const userRef = db.collection('users').doc(uid);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'User not found');
+    }
+
+    const userData = userDoc.data();
+
+    // 이미 복구 코드가 있으면 반환
+    if (userData.recoveryCode) {
+      return {
+        success: true,
+        recoveryCode: userData.recoveryCode,
+        isNew: false,
+      };
+    }
+
+    // 새 복구 코드 생성 (중복 체크)
+    let recoveryCode;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (attempts < maxAttempts) {
+      recoveryCode = generateRecoveryCodeString();
+
+      // 중복 확인
+      const existingQuery = await db
+        .collection('users')
+        .where('recoveryCode', '==', recoveryCode)
+        .limit(1)
+        .get();
+
+      if (existingQuery.empty) {
+        break; // 중복 없음
+      }
+
+      attempts++;
+    }
+
+    if (attempts >= maxAttempts) {
+      throw new functions.https.HttpsError(
+        'internal',
+        'Failed to generate unique recovery code'
+      );
+    }
+
+    // 복구 코드 저장
+    await userRef.update({
+      recoveryCode: recoveryCode,
+      recoveryCodeCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      success: true,
+      recoveryCode: recoveryCode,
+      isNew: true,
+    };
+
+  } catch (error) {
+    console.error('Get or create recovery code error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to get or create recovery code'
+    );
+  }
+});
+
+/**
+ * 복구 코드로 계정 데이터 이전
+ * 기존 계정 데이터를 새 기기 ID로 복사하고, 기존 계정은 비활성화
+ */
+exports.transferAccountData = functions.https.onCall(async (data, context) => {
+  const { recoveryCode, newDeviceId, platform, appVersion } = data;
+
+  if (!recoveryCode || !newDeviceId) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Recovery code and new device ID are required'
+    );
+  }
+
+  if (newDeviceId.length < 10) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Invalid device ID'
+    );
+  }
+
+  try {
+    // 1. 복구 코드로 기존 계정 찾기
+    const oldAccountQuery = await db
+      .collection('users')
+      .where('recoveryCode', '==', recoveryCode.toUpperCase())
+      .where('status', '==', 'active')
+      .limit(1)
+      .get();
+
+    if (oldAccountQuery.empty) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Invalid recovery code or account already transferred'
+      );
+    }
+
+    const oldAccountDoc = oldAccountQuery.docs[0];
+    const oldAccountData = oldAccountDoc.data();
+    const oldUid = oldAccountDoc.id;
+
+    // 2. 새 기기 해시 생성
+    const newDeviceHash = generateDeviceHash(newDeviceId);
+
+    // 3. 이미 새 기기로 등록된 계정이 있는지 확인
+    const existingNewAccountQuery = await db
+      .collection('users')
+      .where('deviceHash', '==', newDeviceHash)
+      .limit(1)
+      .get();
+
+    if (!existingNewAccountQuery.empty) {
+      throw new functions.https.HttpsError(
+        'already-exists',
+        'This device already has an account. Please logout first.'
+      );
+    }
+
+    // 4. 트랜잭션으로 데이터 이전
+    const newUid = generateRandomUID();
+
+    await db.runTransaction(async (transaction) => {
+      // 새 계정 생성 (기존 데이터 복사)
+      const newUserRef = db.collection('users').doc(newUid);
+      const newAccountData = {
+        ...oldAccountData,
+        deviceHash: newDeviceHash,
+        platform: platform || oldAccountData.platform,
+        appVersion: appVersion || oldAccountData.appVersion,
+        transferredFrom: oldUid,
+        transferredAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastLoginAt: admin.firestore.FieldValue.serverTimestamp(),
+        // 복구 코드는 유지 (재복구 가능)
+      };
+
+      transaction.set(newUserRef, newAccountData);
+
+      // 기존 계정 비활성화
+      const oldUserRef = db.collection('users').doc(oldUid);
+      transaction.update(oldUserRef, {
+        status: 'transferred',
+        transferredTo: newUid,
+        transferredAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    // 5. 서브컬렉션 데이터 복사 (비동기로 백그라운드에서 실행)
+    const subcollections = ['attendance', 'dailyAttendance', 'tokenHistory', 'participatedDiscussions', 'attendanceSummary'];
+
+    for (const subcollection of subcollections) {
+      const subcollectionRef = db.collection('users').doc(oldUid).collection(subcollection);
+      const snapshot = await subcollectionRef.get();
+
+      if (!snapshot.empty) {
+        const batch = db.batch();
+        snapshot.docs.forEach(doc => {
+          const newDocRef = db.collection('users').doc(newUid).collection(subcollection).doc(doc.id);
+          batch.set(newDocRef, doc.data());
+        });
+        await batch.commit();
+      }
+    }
+
+    console.log(`Account transferred: ${oldUid} -> ${newUid}`);
+
+    return {
+      success: true,
+      newUid: newUid,
+      nickname: oldAccountData.nickname,
+      tokenCount: oldAccountData.tokenCount || 0,
+      transferredData: {
+        favoriteCount: oldAccountData.favoriteCount || 0,
+        commentCount: oldAccountData.commentCount || 0,
+        speakingRightCount: oldAccountData.speakingRightCount || 0,
+        speakingExtensionCount: oldAccountData.speakingExtensionCount || 0,
+      },
+    };
+
+  } catch (error) {
+    console.error('Transfer account data error:', error);
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to transfer account data'
+    );
+  }
+});

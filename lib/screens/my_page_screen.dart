@@ -11,6 +11,7 @@ import '../services/billing_service.dart';
 import '../utils/constants.dart';
 import 'auth/welcome_screen.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'auth/recovery_code_screen.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
@@ -750,6 +751,20 @@ class _MyPageScreenState extends State<MyPageScreen> {
               title: '앱 정보',
               onTap: () {
                 _showAppInfo(context);
+              },
+              screenWidth: screenWidth,
+            ),
+            const Divider(height: 1),
+            _buildMenuItem(
+              icon: Icons.vpn_key,
+              title: '계정 복구 코드',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RecoveryCodeScreen(),
+                  ),
+                );
               },
               screenWidth: screenWidth,
             ),

@@ -1458,6 +1458,7 @@ class _NewsDetailWithDiscussionState extends State<NewsDetailWithDiscussion> {
       initialChildSize: 0.75,
       maxChildSize: 0.95,
       minChildSize: 0.5,
+      snap: false, // 스냅 동작 비활성화로 부드러운 스크롤 활성화
       builder: (context, scrollController) {
         return Container(
           decoration: const BoxDecoration(

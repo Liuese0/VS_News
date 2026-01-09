@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 import '../home_screen.dart';
 import 'account_created_screen.dart';
+import 'account_recovery_screen.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -117,6 +118,37 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                // 기존 계정 복구 버튼
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: OutlinedButton(
+                    onPressed: _isLoading ? null : _handleRecovery,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.restore, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          '기존 계정 복구',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
                 // 기기 인증 안내
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -188,5 +220,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         );
       }
     }
+  }
+
+  void _handleRecovery() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AccountRecoveryScreen(),
+      ),
+    );
   }
 }
