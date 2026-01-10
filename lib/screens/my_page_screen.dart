@@ -249,21 +249,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   color: Colors.white,
                 ),
               ),
-              GestureDetector(
-                onTap: () => _showSettings(context),
-                child: Container(
-                  padding: EdgeInsets.all(screenWidth * 0.02),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.settings_outlined,
-                    color: Colors.white,
-                    size: screenWidth * 0.05,
-                  ),
-                ),
-              ),
+              SizedBox(width: screenWidth * 0.09), // Placeholder for removed settings icon
             ],
           ),
 
@@ -2214,91 +2200,6 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   ),
                 ),
               ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSettings(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.6,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.all(screenWidth * 0.05),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.settings,
-                    color: const Color(0xD66B7280),
-                    size: screenWidth * 0.07,
-                  ),
-                  SizedBox(width: screenWidth * 0.03),
-                  Text(
-                    '설정',
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.055,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF333333),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-                children: [
-                  SwitchListTile(
-                    title: Text(
-                      '알림 설정',
-                      style: TextStyle(fontSize: screenWidth * 0.04),
-                    ),
-                    subtitle: Text(
-                      '새로운 댓글 알림 받기',
-                      style: TextStyle(fontSize: screenWidth * 0.032),
-                    ),
-                    value: true,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xD66B7280),
-                  ),
-                  const Divider(),
-                  SwitchListTile(
-                    title: Text(
-                      '다크 모드',
-                      style: TextStyle(fontSize: screenWidth * 0.04),
-                    ),
-                    subtitle: Text(
-                      '어두운 테마 사용',
-                      style: TextStyle(fontSize: screenWidth * 0.032),
-                    ),
-                    value: false,
-                    onChanged: (value) {},
-                    activeColor: const Color(0xD66B7280),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),

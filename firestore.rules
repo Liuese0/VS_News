@@ -24,14 +24,36 @@ service cloud.firestore {
         allow read: if true;
         allow write: if false; // Cloud Functions에서만
       }
+
+      // 출석 기록 (클라이언트에서 직접 작성)
+      match /attendance/{date} {
+        allow read: if true;
+        allow write: if true; // 출석체크는 클라이언트에서 직접
+      }
+
+      match /dailyAttendance/{date} {
+        allow read: if true;
+        allow write: if true;
+      }
+
+      match /attendanceSummary/{docId} {
+        allow read: if true;
+        allow write: if true;
+      }
+
+      // 댓글 반응 (좋아요/싫어요)
+      match /commentReactions/{commentId} {
+        allow read: if true;
+        allow write: if true;
+      }
     }
-    
+
     // 캐시 문서 - 모든 사용자 읽기 가능
     match /cache/{docId} {
       allow read: if true;
       allow write: if false; // Cloud Functions에서만
     }
-    
+
     // 토론 문서
     match /discussions/{discussionId} {
       allow read: if true;
@@ -39,7 +61,7 @@ service cloud.firestore {
       allow update: if false; // Cloud Functions에서만
       allow delete: if false;
     }
-    
+
     // 댓글 문서
     match /comments/{commentId} {
       allow read: if true;
@@ -49,23 +71,41 @@ service cloud.firestore {
         && request.resource.data.content.size() <= 1000;
       allow update, delete: if false;
     }
-    
+
     // 즐겨찾기 - 복합키 사용 (uid_newsId)
     match /favorites/{favoriteId} {
       allow read: if true;
       allow write: if false; // Cloud Functions에서만
     }
-    
+
     // 뉴스 문서 (자동 수집된 뉴스)
     match /news/{newsId} {
       allow read: if true;
       allow write: if false; // 서버에서만
     }
-    
+
     // 이슈 문서
     match /issues/{issueId} {
       allow read: if true;
       allow write: if false; // 서버에서만
+    }
+
+    // 기기별 계정 생성 이력 (1년 내 3회 제한)
+    match /deviceCreationHistory/{deviceHash} {
+      allow read: if true; // 생성 횟수 확인을 위해
+      allow write: if true; // 계정 생성 시 이력 기록을 위해
+    }
+
+    // 뉴스 통계 (댓글 수, 참여자 수 등)
+    match /newsStats/{newsId} {
+      allow read: if true;
+      allow write: if true; // 클라이언트에서 업데이트
+    }
+
+    // 투표 기록
+    match /votes/{voteId} {
+      allow read: if true;
+      allow write: if true;
     }
   }
 }
