@@ -151,19 +151,15 @@ class ApiConstants {
     ];
   }
 
-  // News API 키 (환경 변수에서 읽기)
-  static String get newsApiKey => dotenv.env['NEWS_API_KEY'] ?? '';
+  // 네이버 API 인증 정보 (환경 변수에서 읽기)
+  static String get naverClientId => dotenv.env['NAVER_CLIENT_ID'] ?? '';
+  static String get naverClientSecret => dotenv.env['NAVER_CLIENT_SECRET'] ?? '';
 
-  // 뉴스 API 엔드포인트
-  static const String newsApiBaseUrl = 'https://newsapi.org/v2';
+  // 네이버 뉴스 검색 API 엔드포인트
+  static const String naverNewsApiBaseUrl = 'https://openapi.naver.com/v1/search/news.json';
 
   // Gemini API 키 (환경 변수에서 읽기)
   static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
-
-  // 한국 뉴스 소스들
-  static const List<String> koreanNewsSources = [
-    'yonhap-news-agency',
-  ];
 }
 
 class AppStrings {

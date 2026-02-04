@@ -1,4 +1,6 @@
 // lib/models/auto_collected_news.dart
+import 'package:intl/intl.dart';
+
 class AutoCollectedNews {
   final String title;
   final String description;
@@ -29,6 +31,73 @@ class AutoCollectedNews {
       source: json['source']?['name'] ?? '알 수 없음',
       publishedAt: DateTime.tryParse(json['publishedAt'] ?? '') ?? DateTime.now(),
     );
+  }
+
+  // 네이버 뉴스 검색 API 응답 변환
+  factory AutoCollectedNews.fromNaverAPI(Map<String, dynamic> json) {
+    return AutoCollectedNews(
+      title: _removeHtmlTags(json['title'] ?? ''),
+      description: _removeHtmlTags(json['description'] ?? ''),
+      url: json['originallink'] ?? json['link'] ?? '',
+      imageUrl: null, // 네이버 API는 이미지 URL을 제공하지 않음
+      source: _extractSourceFromLink(json['originallink'] ?? ''),
+      publishedAt: _parseNaverDate(json['pubDate'] ?? ''),
+    );
+  }
+
+  // HTML 태그 제거 (<b>, </b> 등)
+  static String _removeHtmlTags(String text) {
+    return text
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&apos;', "'");
+  }
+
+  // 네이버 날짜 형식 파싱 (RFC 822: "Wed, 28 Oct 2020 10:00:00 +0900")
+  static DateTime _parseNaverDate(String dateStr) {
+    try {
+      final format = DateFormat('EEE, dd MMM yyyy HH:mm:ss Z', 'en_US');
+      return format.parse(dateStr);
+    } catch (e) {
+      return DateTime.now();
+    }
+  }
+
+  // 원본 링크에서 출처 추출
+  static String _extractSourceFromLink(String link) {
+    try {
+      final uri = Uri.parse(link);
+      String host = uri.host;
+
+      // 주요 언론사 매핑
+      const sourceMap = {
+        'news.naver.com': '네이버뉴스',
+        'www.chosun.com': '조선일보',
+        'www.donga.com': '동아일보',
+        'www.joongang.co.kr': '중앙일보',
+        'www.hani.co.kr': '한겨레',
+        'www.khan.co.kr': '경향신문',
+        'www.mk.co.kr': '매일경제',
+        'www.hankyung.com': '한국경제',
+        'www.yna.co.kr': '연합뉴스',
+        'www.ytn.co.kr': 'YTN',
+        'www.sbs.co.kr': 'SBS',
+        'www.kbs.co.kr': 'KBS',
+        'www.mbc.co.kr': 'MBC',
+        'www.jtbc.co.kr': 'JTBC',
+        'www.newsis.com': '뉴시스',
+        'www.edaily.co.kr': '이데일리',
+        'news.mt.co.kr': '머니투데이',
+        'www.sedaily.com': '서울경제',
+      };
+
+      return sourceMap[host] ?? host.replaceAll('www.', '').split('.').first;
+    } catch (e) {
+      return '알 수 없음';
+    }
   }
 
   Map<String, dynamic> toJson() {
