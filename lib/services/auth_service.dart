@@ -40,7 +40,9 @@ class AuthService {
     try {
       if (Platform.isAndroid) {
         AndroidDeviceInfo androidInfo = await _deviceInfo.androidInfo;
-        return androidInfo.id;
+        // androidId는 Settings.Secure.ANDROID_ID로 기기마다 고유한 값
+        // id는 Build ID로 같은 빌드 버전의 기기에서 동일할 수 있음
+        return androidInfo.androidId ?? '';
       } else if (Platform.isIOS) {
         IosDeviceInfo iosInfo = await _deviceInfo.iosInfo;
         return iosInfo.identifierForVendor ?? '';
