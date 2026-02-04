@@ -83,7 +83,7 @@ service cloud.firestore {
     // 즐겨찾기 - 복합키 사용 (uid_newsId)
     match /favorites/{favoriteId} {
       allow read: if true;
-      allow write: if false; // Cloud Functions에서만
+      allow write: if true; // 클라이언트에서 추가/삭제
     }
 
     // 뉴스 문서 (자동 수집된 뉴스)
