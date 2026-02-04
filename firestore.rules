@@ -46,6 +46,12 @@ service cloud.firestore {
         allow read: if true;
         allow write: if true;
       }
+
+      // 일일 댓글 카운트
+      match /dailyComments/{docId} {
+        allow read: if true;
+        allow write: if true;
+      }
     }
 
     // 캐시 문서 - 모든 사용자 읽기 가능
