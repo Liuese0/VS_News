@@ -1,4 +1,4 @@
-// lib/services/news_auto_service.dart (페이지 번호 방식)
+// lib/services/news_auto_service.dart (네이버 뉴스 검색 API 사용)
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../models/models.dart';
@@ -14,6 +14,12 @@ class NewsAutoService {
     connectTimeout: const Duration(seconds: 30),
     receiveTimeout: const Duration(seconds: 30),
   ));
+
+  // 네이버 API 인증 헤더 반환
+  Map<String, String> get _naverHeaders => {
+    'X-Naver-Client-Id': ApiConstants.naverClientId,
+    'X-Naver-Client-Secret': ApiConstants.naverClientSecret,
+  };
 
   // 카테고리별 키워드 매핑
   static const Map<String, List<String>> categoryKeywords = {
@@ -83,9 +89,9 @@ class NewsAutoService {
     },
   };
 
-  // 한국 뉴스 소스 리스트
-  static const List<String> koreanNewsSources = [
-    'yonhap-news-agency',
+  // 인기/전체 뉴스용 기본 검색 키워드
+  static const List<String> defaultSearchKeywords = [
+    '속보', '뉴스', '오늘', '최신',
   ];
 
   // 뉴스 자동 수집
@@ -97,8 +103,8 @@ class NewsAutoService {
     try {
       List<AutoCollectedNews> allNews = [];
 
-      // 1. News API에서 한국 뉴스 가져오기
-      final newsApiResults = await _fetchFromNewsAPI(category, page, pageSize);
+      // 1. 네이버 뉴스 검색 API에서 뉴스 가져오기
+      final newsApiResults = await _fetchFromNaverAPI(category, page, pageSize);
       allNews.addAll(newsApiResults);
 
       // 2. 카테고리와 태그 자동 분류
@@ -114,27 +120,42 @@ class NewsAutoService {
     }
   }
 
-  // News API에서 뉴스 가져오기
-  Future<List<AutoCollectedNews>> _fetchFromNewsAPI(String category, int page, int pageSize) async {
+  // 네이버 뉴스 검색 API에서 뉴스 가져오기
+  Future<List<AutoCollectedNews>> _fetchFromNaverAPI(String category, int page, int pageSize) async {
     try {
+      // 카테고리에 따른 검색 쿼리 결정
+      String query;
+      if (category == 'general' || category == '인기' || category == '전체') {
+        // 인기/전체 뉴스: 기본 키워드 조합
+        query = defaultSearchKeywords.join(' ');
+      } else if (categoryKeywords.containsKey(category)) {
+        // 카테고리 키워드 중 상위 3개 사용
+        query = categoryKeywords[category]!.take(3).join(' ');
+      } else {
+        query = category;
+      }
+
+      // 페이지네이션 계산 (네이버 API는 start 파라미터 사용, 1부터 시작)
+      final start = ((page - 1) * pageSize) + 1;
+
       final response = await _dio.get(
-        'https://newsapi.org/v2/top-headlines',
+        ApiConstants.naverNewsApiBaseUrl,
         queryParameters: {
-          'country': 'kr',
-          'category': category == 'general' ? null : category,
-          'page': page,
-          'pageSize': pageSize,
-          'apiKey': ApiConstants.newsApiKey,
+          'query': query,
+          'display': pageSize,
+          'start': start,
+          'sort': 'date', // 날짜순 정렬
         },
+        options: Options(headers: _naverHeaders),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> articles = response.data['articles'] ?? [];
-        return articles.map((article) => AutoCollectedNews.fromNewsAPI(article)).toList();
+        final List<dynamic> items = response.data['items'] ?? [];
+        return items.map((item) => AutoCollectedNews.fromNaverAPI(item)).toList();
       }
       return [];
     } catch (e) {
-      print('News API 오류: $e');
+      print('네이버 뉴스 API 오류: $e');
       return [];
     }
   }
@@ -194,24 +215,27 @@ class NewsAutoService {
         int pageSize = 20,
       }) async {
     try {
-      String query = categoryKeywords[category]?.join(' OR ') ?? category;
+      // 카테고리 키워드를 공백으로 연결 (네이버는 OR 연산자 미지원, 공백은 AND)
+      String query = categoryKeywords[category]?.take(3).join(' ') ?? category;
+
+      // 페이지네이션 계산
+      final start = ((page - 1) * pageSize) + 1;
 
       final response = await _dio.get(
-        'https://newsapi.org/v2/everything',
+        ApiConstants.naverNewsApiBaseUrl,
         queryParameters: {
-          'q': query,
-          'language': 'ko',
-          'sortBy': 'publishedAt',
-          'page': page,
-          'pageSize': pageSize,
-          'apiKey': ApiConstants.newsApiKey,
+          'query': query,
+          'display': pageSize,
+          'start': start,
+          'sort': 'date',
         },
+        options: Options(headers: _naverHeaders),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> articles = response.data['articles'] ?? [];
-        List<AutoCollectedNews> news = articles
-            .map((article) => AutoCollectedNews.fromNewsAPI(article))
+        final List<dynamic> items = response.data['items'] ?? [];
+        List<AutoCollectedNews> news = items
+            .map((item) => AutoCollectedNews.fromNaverAPI(item))
             .toList();
 
         // 카테고리와 태그 분류
@@ -233,23 +257,24 @@ class NewsAutoService {
   Future<List<AutoCollectedNews>> searchNewsByTag(String category, String tag) async {
     try {
       List<String> keywords = tagKeywords[category]?[tag] ?? [tag];
-      String query = keywords.join(' OR ');
+      // 태그 키워드 중 상위 2개 사용
+      String query = keywords.take(2).join(' ');
 
       final response = await _dio.get(
-        'https://newsapi.org/v2/everything',
+        ApiConstants.naverNewsApiBaseUrl,
         queryParameters: {
-          'q': query,
-          'language': 'ko',
-          'sortBy': 'publishedAt',
-          'pageSize': 15,
-          'apiKey': ApiConstants.newsApiKey,
+          'query': query,
+          'display': 15,
+          'start': 1,
+          'sort': 'date',
         },
+        options: Options(headers: _naverHeaders),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> articles = response.data['articles'] ?? [];
-        List<AutoCollectedNews> news = articles
-            .map((article) => AutoCollectedNews.fromNewsAPI(article))
+        final List<dynamic> items = response.data['items'] ?? [];
+        List<AutoCollectedNews> news = items
+            .map((item) => AutoCollectedNews.fromNaverAPI(item))
             .toList();
 
         // 카테고리와 태그 분류
