@@ -306,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 SizedBox(width: screenWidth * 0.02),
                 Flexible(
                   child: Text(
-                    'LOGOS : Forum',
+                    'LOGOS : News',
                     style: TextStyle(
                       fontSize: screenWidth * 0.06,
                       fontWeight: FontWeight.bold,

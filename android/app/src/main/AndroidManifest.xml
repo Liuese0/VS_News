@@ -20,7 +20,7 @@
     </queries>
 
     <application
-        android:label="lr_news"
+        android:label="LOGOS : News"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">

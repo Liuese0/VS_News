@@ -1,6 +1,6 @@
 name: news_debater
 description: 뉴스 토론 앱 - 뜨거운 이슈에 대한 여론을 확인하고 토론해보세요
-publish_to: 'none'
+publish_to: 'enigma_jun0'
 version: 1.0.0+1
 
 environment:
@@ -66,13 +66,27 @@ dependencies:
   # In-App Purchase
   in_app_purchase: ^3.1.13
 
+  #launcher
+  flutter_launcher_icons : ^0.14.4
+
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
+
+flutter_launcher_icons:
+  android: true # 안드로이드 플랫폼에 런처 아이콘 적용 여부
+  ios: true # iOS 플랫폼에 런처 아이콘 적용 여부
+  image_path: "assets/icons/app_icon.png" # 런처 아이콘으로 사용할 이미지 경로
+  adaptive_icon_background: "#000000" # 안드로이드 적응형 아이콘의 배경색 (검정색)
+  adaptive_icon_foreground: "assets/icons/app_icon.png" # 안드로이드 적응형 아이콘의 전경 이미지 경로
+  min_sdk_android: 21 # 안드로이드 최소 SDK 버전 (API 21(Android 5.0) 이상)
 
 flutter:
   uses-material-design: true
 
   assets:
     - .env
+    - assets/icons/

@@ -2678,7 +2678,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
             ),
             SizedBox(width: screenWidth * 0.02),
             Text(
-              'LOGOS : Forum',
+              'LOGOS : News',
               style: TextStyle(fontSize: screenWidth * 0.045),
             ),
           ],
