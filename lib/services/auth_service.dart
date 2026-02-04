@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:android_id/android_id.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -16,6 +17,7 @@ class AuthService {
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
+  static const AndroidId _androidIdPlugin = AndroidId();
 
   static const String _uidKey = 'device_registered_uid';
   static const String _secretKey = 'your_secret_key_change_this_in_production';
@@ -39,10 +41,10 @@ class AuthService {
   Future<String> _getDeviceId() async {
     try {
       if (Platform.isAndroid) {
-        AndroidDeviceInfo androidInfo = await _deviceInfo.androidInfo;
-        // androidId는 Settings.Secure.ANDROID_ID로 기기마다 고유한 값
-        // id는 Build ID로 같은 빌드 버전의 기기에서 동일할 수 있음
-        return androidInfo.androidId ?? '';
+        // android_id 패키지로 Settings.Secure.ANDROID_ID 가져오기
+        // 이 값은 기기마다 고유하며, 공장 초기화 시에만 변경됨
+        final String? androidId = await _androidIdPlugin.getId();
+        return androidId ?? '';
       } else if (Platform.isIOS) {
         IosDeviceInfo iosInfo = await _deviceInfo.iosInfo;
         return iosInfo.identifierForVendor ?? '';
