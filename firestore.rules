@@ -65,7 +65,7 @@ service cloud.firestore {
     // 댓글 문서
     match /comments/{commentId} {
       allow read: if true;
-      allow create: if request.resource.data.uid is string
+      allow create: if request.resource.data.userId is string
         && request.resource.data.content is string
         && request.resource.data.content.size() > 0
         && request.resource.data.content.size() <= 1000;
