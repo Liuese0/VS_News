@@ -1,7 +1,7 @@
 name: news_debater
 description: 뉴스 토론 앱 - 뜨거운 이슈에 대한 여론을 확인하고 토론해보세요
 publish_to: 'enigma_jun0'
-version: 1.0.0+1
+version: 1.0.0+4
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
