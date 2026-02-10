@@ -1,4 +1,4 @@
-package com.example.lr_news
+package com.lshift.lr_news
 
 import io.flutter.embedding.android.FlutterActivity
 
