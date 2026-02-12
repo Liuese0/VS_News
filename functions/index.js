@@ -112,9 +112,16 @@ exports.registerDevice = functions.https.onCall(async (data, context) => {
     await db.collection('users').doc(uid).set({
       deviceHash: deviceHash,
       nickname: nickname,
-      tokenCount: 100, // 초기 토큰 지급
+      tokenCount: 0,
       favoriteCount: 0,
       commentCount: 0,
+      speakingRightCount: 0,
+      speakingExtensionCount: 0,
+      permanentBookmarkSlots: 0,
+      modernPass: null,
+      intellectualPass: null,
+      sophistPass: null,
+      badge: '',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       lastLoginAt: admin.firestore.FieldValue.serverTimestamp(),
       platform: platform,
@@ -122,23 +129,14 @@ exports.registerDevice = functions.https.onCall(async (data, context) => {
       status: 'active',
     });
 
-    // 초기 토큰 지급 기록
-    await db.collection('users').doc(uid).collection('tokenHistory').add({
-      type: 'welcome_bonus',
-      amount: 100,
-      balance: 100,
-      description: '가입 축하 토큰',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
     // deviceCreationHistory 업데이트
     await deviceHistoryRef.set({
-      creationHistory: admin.firestore.FieldValue.arrayUnion({
+      creationHistory: admin.firestore.FieldValue.arrayUnion([{
         uid: uid,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         platform: platform,
         appVersion: appVersion,
-      }),
+      }]),
       lastCreatedAt: admin.firestore.FieldValue.serverTimestamp(),
       deviceHash: deviceHash,
     }, { merge: true });
@@ -148,7 +146,7 @@ exports.registerDevice = functions.https.onCall(async (data, context) => {
       uid: uid,
       isNewUser: true,
       nickname: nickname,
-      tokenCount: 100,
+      tokenCount: 0,
     };
 
   } catch (error) {

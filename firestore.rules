@@ -8,10 +8,12 @@ service cloud.firestore {
         && request.resource.data.uid.size() == 32;
     }
     
-    // 유저 문서 - 본인만 읽기 가능, 쓰기는 Functions 통해서만
+    // 유저 문서 - 읽기 가능, 생성/삭제는 Cloud Functions에서만, 업데이트는 클라이언트 허용
     match /users/{uid} {
       allow read: if request.auth == null || resource.data.deviceHash != null;
-      allow write: if false; // Cloud Functions에서만 쓰기 가능
+      allow create: if false; // Cloud Functions에서만 계정 생성 가능
+      allow update: if true; // 클라이언트에서 닉네임, 토큰 등 업데이트 허용
+      allow delete: if false; // Cloud Functions에서만 삭제 가능
       
       // 참여한 토론 서브컬렉션
       match /participatedDiscussions/{discussionId} {

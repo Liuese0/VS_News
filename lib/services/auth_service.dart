@@ -76,7 +76,7 @@ class AuthService {
       }
     }
 
-    // 2. 새 UID 생성
+    // 2. 디바이스 ID 가져오기
     final deviceId = await _getDeviceId();
 
     if (deviceId.isEmpty) {
@@ -99,76 +99,31 @@ class AuthService {
       return uid;
     }
 
-    // 4. 새 계정 생성 전 생성 횟수 제한 확인
-    final oneYearAgo = DateTime.now().subtract(const Duration(days: 365));
-    final deviceHistoryRef = _firestore.collection('deviceCreationHistory').doc(deviceHash);
-    final deviceHistoryDoc = await deviceHistoryRef.get();
+    // 4. Cloud Function을 통해 새 계정 생성
+    // (Firestore 보안 규칙에서 users 컬렉션 직접 쓰기가 차단되어 있으므로)
+    try {
+      final result = await _functions.httpsCallable('registerDevice').call({
+        'deviceId': deviceId,
+        'platform': Platform.isAndroid ? 'android' : 'ios',
+        'appVersion': '1.0.0',
+      });
 
-    if (deviceHistoryDoc.exists) {
-      final historyData = deviceHistoryDoc.data()!;
-      final creationHistory = historyData['creationHistory'] as List<dynamic>? ?? [];
+      final data = result.data as Map<String, dynamic>;
 
-      // 1년 내 생성된 계정 필터링
-      final recentCreations = creationHistory.where((record) {
-        final createdAt = (record['createdAt'] as Timestamp).toDate();
-        return createdAt.isAfter(oneYearAgo);
-      }).toList();
-
-      // 1년 내 3회 이상 생성 시 차단
-      if (recentCreations.length >= 3) {
-        final oldestCreation = recentCreations.reduce((a, b) {
-          final aDate = (a['createdAt'] as Timestamp).toDate();
-          final bDate = (b['createdAt'] as Timestamp).toDate();
-          return aDate.isBefore(bDate) ? a : b;
-        });
-        final nextAvailableDate = (oldestCreation['createdAt'] as Timestamp)
-            .toDate()
-            .add(const Duration(days: 365));
-
-        throw Exception(
-            '계정 생성 횟수가 초과되었습니다.\n다음 생성 가능 날짜: ${nextAvailableDate.year}-${nextAvailableDate.month.toString().padLeft(2, '0')}-${nextAvailableDate.day.toString().padLeft(2, '0')}');
+      if (data['success'] == true) {
+        final uid = data['uid'] as String;
+        await _secureStorage.write(key: _uidKey, value: uid);
+        _cachedUid = uid;
+        return uid;
+      } else {
+        throw Exception('계정 생성에 실패했습니다');
       }
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'resource-exhausted') {
+        throw Exception(e.message ?? '계정 생성 횟수가 초과되었습니다');
+      }
+      throw Exception('계정 생성 실패: ${e.message}');
     }
-
-    // 5. 새 계정 생성
-    final newUserRef = _firestore.collection('users').doc();
-    final uid = newUserRef.id;
-
-    await newUserRef.set({
-      'deviceHash': deviceHash,
-      'createdAt': FieldValue.serverTimestamp(),
-      'tokenCount': 0,
-      'favoriteCount': 0,
-      'commentCount': 0,
-      'nickname': '익명${DateTime.now().millisecondsSinceEpoch % 10000}',
-      'speakingRightCount': 0, // 발언권 (댓글 추가권)
-      'speakingExtensionCount': 0, // 발언연장권 (50글자 추가권)
-      'permanentBookmarkSlots': 0, // 영구 즐겨찾기 슬롯
-      // 패스 관련
-      'modernPass': null, // 현대인패스 구독 만료일
-      'intellectualPass': null, // 지식인패스 구독 만료일
-      'sophistPass': null, // 소피스패스 구독 만료일
-      'badge': '', // 배지 ('intellectual' 또는 'sophist')
-      'status': 'active', // 계정 상태 (active, transferred)
-    });
-
-    // 6. deviceCreationHistory 업데이트
-    await deviceHistoryRef.set({
-      'creationHistory': FieldValue.arrayUnion([
-        {
-          'uid': uid,
-          'createdAt': FieldValue.serverTimestamp(),
-          'platform': Platform.isAndroid ? 'android' : 'ios',
-        }
-      ]),
-      'lastCreatedAt': FieldValue.serverTimestamp(),
-      'deviceHash': deviceHash,
-    }, SetOptions(merge: true));
-
-    await _secureStorage.write(key: _uidKey, value: uid);
-    _cachedUid = uid;
-
-    return uid;
   }
 
   // 현재 사용자 UID
@@ -630,143 +585,49 @@ class AuthService {
   }
 
   /// 복구 코드로 계정 데이터 이전
-  /// 기존 계정의 데이터를 새 기기 ID로 가져오고, 기존 계정은 비활성화됨
+  /// Cloud Function을 통해 기존 계정의 데이터를 새 기기로 이전
   Future<Map<String, dynamic>> transferDataWithRecoveryCode(String recoveryCode) async {
     try {
       final cleanCode = recoveryCode.toUpperCase().replaceAll(' ', '').replaceAll('-', '');
+      final codeWithDash = '${cleanCode.substring(0, 4)}-${cleanCode.substring(4, 8)}-${cleanCode.substring(8, 12)}-${cleanCode.substring(12, 16)}';
 
-      // 1. 현재 기기 ID 가져오기
       final deviceId = await _getDeviceId();
       if (deviceId.isEmpty) {
         throw Exception('디바이스 ID를 가져올 수 없습니다');
       }
 
-      final newDeviceHash = _generateDeviceHash(deviceId);
-
-      // 2. 이미 새 기기로 등록된 계정이 있는지 확인
-      final existingNewAccountQuery = await _firestore
-          .collection('users')
-          .where('deviceHash', isEqualTo: newDeviceHash)
-          .limit(1)
-          .get();
-
-      if (existingNewAccountQuery.docs.isNotEmpty) {
-        throw Exception('이 기기에 이미 계정이 있습니다. 먼저 로그아웃해주세요');
-      }
-
-      // 3. 복구 코드로 기존 계정 찾기 (하이픈 있는/없는 버전 모두 검색)
-      final codeWithDash = '${cleanCode.substring(0, 4)}-${cleanCode.substring(4, 8)}-${cleanCode.substring(8, 12)}-${cleanCode.substring(12, 16)}';
-
-      QuerySnapshot oldAccountQuery = await _firestore
-          .collection('users')
-          .where('recoveryCode', isEqualTo: codeWithDash)
-          .limit(1)
-          .get();
-
-      // 하이픈 없는 버전으로도 시도
-      if (oldAccountQuery.docs.isEmpty) {
-        oldAccountQuery = await _firestore
-            .collection('users')
-            .where('recoveryCode', isEqualTo: cleanCode)
-            .limit(1)
-            .get();
-      }
-
-      if (oldAccountQuery.docs.isEmpty) {
-        throw Exception('올바르지 않은 복구 코드입니다');
-      }
-
-      final oldAccountDoc = oldAccountQuery.docs.first;
-      final oldAccountData = oldAccountDoc.data() as Map<String, dynamic>;
-      final oldUid = oldAccountDoc.id;
-
-      // status 체크 (필드가 없거나 active가 아니면 이미 이전됨)
-      final status = oldAccountData['status'] as String?;
-      if (status == 'transferred') {
-        throw Exception('이미 이전된 계정입니다');
-      }
-
-      // 4. 새 계정 생성 (기존 데이터 복사)
-      final newUserRef = _firestore.collection('users').doc();
-      final newUid = newUserRef.id;
-
-      final newAccountData = Map<String, dynamic>.from(oldAccountData);
-      newAccountData['deviceHash'] = newDeviceHash;
-      newAccountData['platform'] = Platform.isAndroid ? 'android' : 'ios';
-      newAccountData['transferredFrom'] = oldUid;
-      newAccountData['transferredAt'] = FieldValue.serverTimestamp();
-      newAccountData['lastLoginAt'] = FieldValue.serverTimestamp();
-      newAccountData['updatedAt'] = FieldValue.serverTimestamp();
-      newAccountData['status'] = 'active'; // 새 계정은 active 상태
-
-      // 5. Batch로 트랜잭션 실행
-      final batch = _firestore.batch();
-
-      // 새 계정 생성
-      batch.set(newUserRef, newAccountData);
-
-      // 기존 계정 비활성화
-      batch.update(_firestore.collection('users').doc(oldUid), {
-        'status': 'transferred',
-        'transferredTo': newUid,
-        'transferredAt': FieldValue.serverTimestamp(),
+      // Cloud Function을 통해 계정 이전 처리
+      final result = await _functions.httpsCallable('transferAccountData').call({
+        'recoveryCode': codeWithDash,
+        'newDeviceId': deviceId,
+        'platform': Platform.isAndroid ? 'android' : 'ios',
+        'appVersion': '1.0.0',
       });
 
-      await batch.commit();
+      final data = result.data as Map<String, dynamic>;
 
-      // 6. 서브컬렉션 데이터 복사 (비동기)
-      final subcollections = [
-        'attendance',
-        'dailyAttendance',
-        'tokenHistory',
-        'participatedDiscussions',
-        'attendanceSummary'
-      ];
+      if (data['success'] == true) {
+        final newUid = data['newUid'] as String;
+        await _secureStorage.write(key: _uidKey, value: newUid);
+        _cachedUid = newUid;
 
-      for (final subcollection in subcollections) {
-        try {
-          final snapshot = await _firestore
-              .collection('users')
-              .doc(oldUid)
-              .collection(subcollection)
-              .get();
-
-          if (snapshot.docs.isNotEmpty) {
-            final subBatch = _firestore.batch();
-            for (var doc in snapshot.docs) {
-              final newDocRef = _firestore
-                  .collection('users')
-                  .doc(newUid)
-                  .collection(subcollection)
-                  .doc(doc.id);
-              subBatch.set(newDocRef, doc.data());
-            }
-            await subBatch.commit();
-          }
-        } catch (e) {
-          print('서브컬렉션 $subcollection 복사 실패: $e');
-          // 계속 진행 (일부 서브컬렉션 실패해도 계정 복구는 성공)
-        }
+        return {
+          'success': true,
+          'uid': newUid,
+          'nickname': data['nickname'] ?? '익명',
+          'tokenCount': data['tokenCount'] ?? 0,
+          'transferredData': data['transferredData'] ?? {},
+        };
+      } else {
+        throw Exception('계정 데이터 이전에 실패했습니다');
       }
-
-      // 7. 새 UID를 로컬에 저장
-      await _secureStorage.write(key: _uidKey, value: newUid);
-      _cachedUid = newUid;
-
-      print('계정 이전 완료: $oldUid -> $newUid');
-
-      return {
-        'success': true,
-        'uid': newUid,
-        'nickname': oldAccountData['nickname'] ?? '익명',
-        'tokenCount': oldAccountData['tokenCount'] ?? 0,
-        'transferredData': {
-          'favoriteCount': oldAccountData['favoriteCount'] ?? 0,
-          'commentCount': oldAccountData['commentCount'] ?? 0,
-          'speakingRightCount': oldAccountData['speakingRightCount'] ?? 0,
-          'speakingExtensionCount': oldAccountData['speakingExtensionCount'] ?? 0,
-        },
-      };
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'not-found') {
+        throw Exception('올바르지 않은 복구 코드입니다');
+      } else if (e.code == 'already-exists') {
+        throw Exception('이 기기에 이미 계정이 있습니다. 먼저 로그아웃해주세요');
+      }
+      throw Exception('계정 데이터 이전 실패: ${e.message}');
     } catch (e) {
       print('계정 데이터 이전 실패: $e');
       if (e.toString().contains('이 기기에 이미 계정이') ||
